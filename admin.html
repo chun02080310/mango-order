@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>芒果咖啡・訂閱後台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@700;900&display=swap">
+<style>
+  :root{
+    --paper:#FAF5EC; --surface:#FFFFFF; --surface-2:#F4ECDD;
+    --ink:#2C2117; --ink-soft:#6F5C46; --ink-faint:#A2907A; --line:#E7DAC4;
+    --accent:#E68A1E; --accent-deep:#C56A12; --coffee:#7A5230;
+    --good:#3E8E5A; --good-bg:#E4F0E5; --pending:#C87A1B; --pending-bg:#FBEAD2;
+    --overdue:#C0432F; --overdue-bg:#F7E0DA; --wallet:#2F7D8C; --wallet-bg:#DDEDEF;
+    --shadow:0 1px 2px rgba(44,33,23,.06),0 8px 24px rgba(44,33,23,.07); --radius:14px;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --paper:#191410; --surface:#231B14; --surface-2:#2C2318;
+    --ink:#F3E9DA; --ink-soft:#C3B098; --ink-faint:#8C7A63; --line:#3A2E20;
+    --accent:#F2A03E; --accent-deep:#F4B968; --coffee:#C9976A;
+    --good:#68B984; --good-bg:#1E3326; --pending:#E7A24C; --pending-bg:#3A2C16;
+    --overdue:#E8735C; --overdue-bg:#3A211B; --wallet:#5FB6C6; --wallet-bg:#1B3238;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);}}
+  :root[data-theme="dark"]{
+    --paper:#191410; --surface:#231B14; --surface-2:#2C2318;
+    --ink:#F3E9DA; --ink-soft:#C3B098; --ink-faint:#8C7A63; --line:#3A2E20;
+    --accent:#F2A03E; --accent-deep:#F4B968; --coffee:#C9976A;
+    --good:#68B984; --good-bg:#1E3326; --pending:#E7A24C; --pending-bg:#3A2C16;
+    --overdue:#E8735C; --overdue-bg:#3A211B; --wallet:#5FB6C6; --wallet-bg:#1B3238;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;line-height:1.55}
+  h1,h2,h3{font-family:"Noto Serif TC",Georgia,serif;font-weight:700;line-height:1.25;text-wrap:balance;margin:0}
+  .wrap{max-width:1040px;margin:0 auto;padding:22px 18px 80px}
+  header.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+  .brand h1{font-size:22px;letter-spacing:.01em}
+  .brand .sub{font-size:12.5px;color:var(--ink-soft);letter-spacing:.02em;margin-top:2px}
+  .hdr-actions{display:flex;gap:10px;align-items:center}
+  .hdr-actions[hidden]{display:none}
+  .btn{border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;border-radius:10px;
+    padding:10px 16px;display:inline-flex;align-items:center;gap:7px;transition:transform .08s,filter .15s}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{filter:brightness(1.05)}
+  .btn-ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}.btn-ghost:hover{background:var(--surface-2)}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .logout{background:none;border:none;color:var(--ink-faint);font-family:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline}
+  .tabs{display:inline-flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:20px}
+  .tabs button{border:none;background:none;font-family:inherit;font-size:14px;font-weight:700;color:var(--ink-soft);padding:8px 16px;border-radius:9px;cursor:pointer;transition:.12s}
+  .tabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+  .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow)}
+  .tile .k{font-size:12.5px;color:var(--ink-soft);display:flex;align-items:center;gap:6px}
+  .tile .v{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;letter-spacing:-.01em}
+  .tile .v small{font-size:14px;font-weight:600;color:var(--ink-soft)}
+  .tile.hot .v{color:var(--accent-deep)}.tile.wallet .v{color:var(--wallet)}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .chip{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);padding:7px 13px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;transition:.12s}
+  .chip:hover{background:var(--surface-2)}.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .search{margin-left:auto;flex:0 1 220px;position:relative}
+  .search input{width:100%;padding:9px 12px 9px 32px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:14px}
+  .search input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5}
+  .list{display:flex;flex-direction:column;gap:11px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow);cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;transition:border-color .12s,transform .08s}
+  .card:hover{border-color:var(--accent)}.card:active{transform:translateY(1px)}
+  .card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .card .who{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .name-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .cust{font-size:16px;font-weight:700}
+  .badge{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;letter-spacing:.02em}
+  .b-voyage{background:#F3E3CF;color:#8a5a1e}.b-supply6{background:#E6EEDD;color:#4d6a34}.b-supply12{background:#E1EAF0;color:#3a5f78}.b-custom{background:#EFE2D2;color:#7a5230}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .b-voyage{background:#3a2c17;color:#e7b374}:root:not([data-theme="light"]) .b-supply6{background:#293019;color:#b7d089}:root:not([data-theme="light"]) .b-supply12{background:#1e2c36;color:#93bcd6}:root:not([data-theme="light"]) .b-custom{background:#33281b;color:#d5b48a}}
+  :root[data-theme="dark"] .b-voyage{background:#3a2c17;color:#e7b374}:root[data-theme="dark"] .b-supply6{background:#293019;color:#b7d089}:root[data-theme="dark"] .b-supply12{background:#1e2c36;color:#93bcd6}:root[data-theme="dark"] .b-custom{background:#33281b;color:#d5b48a}
+  .meta{font-size:12.5px;color:var(--ink-soft);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .meta .dot{opacity:.4}
+  .prog{display:flex;flex-direction:column;gap:6px;align-items:flex-end;text-align:right}
+  .prog .frac{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}.prog .frac b{color:var(--good)}
+  .remain-pill{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+  .remain-pill.go{background:var(--pending-bg);color:var(--pending)}.remain-pill.done{background:var(--good-bg);color:var(--good)}.remain-pill.due{background:var(--overdue-bg);color:var(--overdue)}
+  .bar{width:150px;max-width:38vw;height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),#5fae7a)}
+  .next{font-size:12px;color:var(--ink-soft)}.next b{color:var(--ink)}.next.due b{color:var(--overdue)}
+  .bal-col{text-align:right;display:flex;flex-direction:column;gap:2px;align-items:flex-end}
+  .bal-col .bnum{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--wallet)}.bal-col .bnum.neg{color:var(--overdue)}
+  .bal-col .blbl{font-size:11.5px;color:var(--ink-soft)}
+  .empty{text-align:center;padding:56px 20px;color:var(--ink-soft)}.empty .big{font-size:44px;margin-bottom:8px}.empty h2{font-size:19px;color:var(--ink);margin-bottom:6px}
+  .overlay{position:fixed;inset:0;background:rgba(30,22,14,.5);backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:flex-start;padding:28px 14px;overflow-y:auto;z-index:50}
+  .overlay[hidden]{display:none}
+  .modal{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);width:100%;max-width:560px;overflow:hidden;animation:pop .16s ease}
+  @keyframes pop{from{transform:translateY(8px);opacity:.6}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.modal{animation:none}}
+  .modal-head{padding:18px 20px 14px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:12px}
+  .modal-head .htxt{margin-right:auto;min-width:0}.modal-head h2{font-size:19px}
+  .modal-head .hsub{font-size:13px;color:var(--ink-soft);margin-top:4px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  .x{background:var(--surface-2);border:none;width:32px;height:32px;border-radius:9px;cursor:pointer;font-size:17px;color:var(--ink);flex:none}.x:hover{background:var(--line)}
+  .modal-body{padding:16px 20px 20px;max-height:64vh;overflow-y:auto}
+  .detail-hero{display:flex;gap:14px;align-items:center;background:var(--surface-2);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  .detail-hero .num{font-size:38px;font-weight:800;line-height:1;color:var(--accent-deep);font-variant-numeric:tabular-nums}
+  .detail-hero.w .num{color:var(--wallet)}.detail-hero.w .num.neg{color:var(--overdue)}
+  .detail-hero .lbl{font-size:13px;color:var(--ink-soft)}.detail-hero .lbl b{color:var(--ink);font-size:15px;display:block}
+  .info-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13.5px;margin-bottom:18px}
+  .info-grid dt{color:var(--ink-soft)}.info-grid dd{margin:0;font-weight:600}
+  .periods h3,.txns h3{font-size:13px;color:var(--ink-soft);font-family:inherit;font-weight:700;letter-spacing:.04em;margin-bottom:9px;display:flex;align-items:center;gap:8px}
+  .p-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--surface)}
+  .p-row.ship{background:var(--good-bg);border-color:transparent}
+  .p-row .pn{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none;font-variant-numeric:tabular-nums}
+  .p-row.ship .pn{background:var(--good);color:#fff}
+  .p-info{margin-right:auto}.p-info .pm{font-weight:600;font-size:14px}.p-info .ps{font-size:12px;color:var(--ink-soft)}.p-info .ps.due{color:var(--overdue);font-weight:600}
+  .toggle{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-family:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+  .toggle:hover{background:var(--surface-2)}.toggle.on{background:var(--good);color:#fff;border-color:transparent}
+  .toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .pdate{font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 7px;flex:none}.pdate:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .txn-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;background:var(--surface-2);border-radius:12px;padding:12px;margin-bottom:16px}
+  .txn-form .amt{flex:1;min-width:110px;display:flex;flex-direction:column;gap:5px}.txn-form .amt.n2{flex:2;min-width:140px}
+  .txn-form label{font-size:12px;font-weight:600;color:var(--ink-soft)}
+  .txn-form input{font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 11px;width:100%}
+  .txn-form input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  .btn-topup{background:var(--wallet);color:#fff}.btn-spend{background:var(--surface);color:var(--overdue);border:1px solid var(--overdue)}
+  .txn-row{display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px}
+  .txn-row .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:14px;flex:none;font-weight:800}
+  .txn-row .ic.up{background:var(--wallet-bg);color:var(--wallet)}.txn-row .ic.dn{background:var(--overdue-bg);color:var(--overdue)}
+  .txn-row .tx-main{margin-right:auto;min-width:0}.txn-row .tx-note{font-size:13.5px;font-weight:600}.txn-row .tx-date{font-size:11.5px;color:var(--ink-soft)}
+  .txn-row .tx-amt{font-weight:800;font-variant-numeric:tabular-nums;font-size:15px}.txn-row .tx-amt.up{color:var(--wallet)}.txn-row .tx-amt.dn{color:var(--overdue)}
+  .modal-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+  .link-danger{margin-right:auto;background:none;border:none;color:var(--overdue);font-family:inherit;font-size:13px;cursor:pointer;font-weight:600}.link-danger:hover{text-decoration:underline}
+  form.order-form{display:flex;flex-direction:column;gap:14px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:13px;font-weight:600;color:var(--ink-soft)}.field label .req{color:var(--overdue)}
+  .field input,.field select,.field textarea{font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  .field textarea{resize:vertical;min-height:56px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .seg{display:flex;gap:8px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:96px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-family:inherit;font-size:13.5px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:transparent}.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .hint{font-size:12px;color:var(--ink-soft);background:var(--surface-2);border-radius:8px;padding:8px 11px}.hint b{color:var(--ink)}
+  .err{font-size:12.5px;color:var(--overdue);font-weight:600}
+  .checkline{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--ink)}.checkline input{width:auto}
+  .plan-item{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--line);border-radius:11px;margin-bottom:9px;background:var(--surface)}
+  .plan-item .pi-main{margin-right:auto;min-width:0}.plan-item .pi-name{font-weight:700;font-size:14.5px}.plan-item .pi-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .tag-builtin{font-size:11px;font-weight:700;color:var(--ink-faint);background:var(--surface-2);padding:3px 8px;border-radius:6px}
+  .del-x{background:none;border:1px solid var(--line);color:var(--overdue);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}.del-x:hover{background:var(--overdue-bg)}
+  .divider{border:none;border-top:1px solid var(--line);margin:18px 0 4px}
+  .section-title{font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:10px}
+  footer{margin-top:34px;text-align:center;font-size:12px;color:var(--ink-faint)}
+  /* login */
+  .auth{position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+  .auth[hidden]{display:none}
+  .auth-card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:28px 24px;text-align:center}
+  .auth-card .kicker{font-size:12px;letter-spacing:.28em;color:var(--accent-deep);font-weight:700}
+  .auth-card h1{font-size:23px;margin:8px 0 4px}
+  .auth-card p{color:var(--ink-soft);font-size:13.5px;margin:0 0 18px}
+  .auth-card form{display:flex;flex-direction:column;gap:11px;text-align:left}
+  .auth-card input{font-family:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:12px 13px}
+  .auth-card input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  .auth-msg{font-size:13px;margin-top:12px;font-weight:600}.auth-msg.ok{color:var(--good)}.auth-msg.err{color:var(--overdue)}
+  .boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:14px;z-index:120;background:var(--paper)}
+  .boot[hidden]{display:none}
+  @media(max-width:560px){.card{grid-template-columns:1fr}.prog,.bal-col{align-items:flex-start;text-align:left}.bar{max-width:none;width:100%}.row2{grid-template-columns:1fr}.detail-hero .num{font-size:32px}header.top .btn{flex:1;justify-content:center}}
+</style>
+</head>
+<body>
+<div class="boot" id="boot">載入中…</div>
+
+<!-- 登入 -->
+<div class="auth" id="authOverlay" hidden>
+  <div class="auth-card">
+    <div class="kicker">MANGO COFFEE</div>
+    <h1>訂閱後台</h1>
+    <p>只有你和團隊能進來。輸入 Email，我們寄一封登入信給你。</p>
+    <form id="authForm">
+      <input id="authEmail" type="email" autocomplete="email" placeholder="你的 Email" required>
+      <button class="btn btn-primary" type="submit" id="authBtn" style="justify-content:center;padding:12px">寄送登入連結</button>
+    </form>
+    <div class="auth-msg" id="authMsg"></div>
+  </div>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div class="brand"><div><h1>芒果咖啡</h1><div class="sub">訂閱後台 · 定期方案 &amp; 儲值追蹤</div></div></div>
+    <div class="hdr-actions" id="subsActions">
+      <button class="btn btn-ghost" id="planBtn">⚙ 方案</button>
+      <button class="btn btn-primary" id="addBtn">＋ 新增訂單</button>
+    </div>
+    <div class="hdr-actions" id="walletActions" hidden>
+      <button class="btn btn-primary" id="addWalletBtn">＋ 新增儲值客戶</button>
+    </div>
+    <button class="logout" id="logoutBtn" title="登出">登出</button>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button data-view="subs" aria-pressed="true">📦 訂閱追蹤</button>
+    <button data-view="wallet" aria-pressed="false">💰 儲值客戶</button>
+  </div>
+
+  <div id="subsView">
+    <section class="tiles" id="tiles"></section>
+    <div class="filters">
+      <button class="chip" data-f="all" aria-pressed="true">全部</button>
+      <button class="chip" data-f="active" aria-pressed="false">進行中</button>
+      <button class="chip" data-f="thismonth" aria-pressed="false">本月待出貨</button>
+      <button class="chip" data-f="done" aria-pressed="false">已完成</button>
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        <input id="search" type="search" placeholder="搜尋客戶…" aria-label="搜尋訂閱客戶"></div>
+    </div>
+    <section class="list" id="list"></section>
+  </div>
+
+  <div id="walletView" hidden>
+    <section class="tiles" id="wTiles"></section>
+    <div class="filters"><div class="search" style="margin-left:0;flex:0 1 240px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+      <input id="wSearch" type="search" placeholder="搜尋姓名／電話…" aria-label="搜尋儲值客戶"></div></div>
+    <section class="list" id="wList"></section>
+  </div>
+  <footer id="foot"></footer>
+</div>
+
+<!-- 訂單詳情 -->
+<div class="overlay" id="detailOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="dTitle"></h2><div class="hsub" id="dSub"></div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body" id="dBody"></div>
+  <div class="modal-foot"><button class="link-danger" id="delBtn">刪除此訂單</button><button class="btn btn-ghost" data-close>關閉</button></div>
+</div></div>
+
+<!-- 新增訂單 -->
+<div class="overlay" id="formOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="fTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="fTitle">新增訂單</h2><div class="hsub">把客人下的定期方案登記進來</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body"><form class="order-form" id="orderForm">
+    <div class="field"><label>客戶名稱 <span class="req">*</span></label><input id="f_customer" required placeholder="例：王小明 / 芒果商行"></div>
+    <div class="field"><label>方案 <span class="req">*</span></label><div class="seg" id="f_plan" role="group" aria-label="方案"></div></div>
+    <div class="field" id="itemField"><label>品項 <span class="req">*</span></label><div class="seg" id="f_item" role="group" aria-label="品項">
+      <button type="button" data-v="ear">耳掛（30 包/期）</button><button type="button" data-v="soak">浸泡（40 包/期）</button></div></div>
+    <div class="row2">
+      <div class="field"><label>組數 <span class="req">*</span></label><input id="f_qty" type="number" min="1" step="1" value="1" required></div>
+      <div class="field"><label>期數（可調整）<span class="req">*</span></label><select id="f_periods"></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>收件方式</label><select id="f_deliv">
+        <option value="home">宅配到府</option><option value="pickup">超商取貨（超取）</option><option value="selfpick">門市自取</option><option value="onceAll">一次取全年</option></select></div>
+      <div class="field"><label>首次出貨月份 <span class="req">*</span></label><input id="f_start" type="month" required></div>
+    </div>
+    <div class="field"><label>收件資訊（門市 / 地址）</label><input id="f_address" placeholder="例：7-11 芒果門市 / 台北市…"></div>
+    <div class="row2">
+      <div class="field"><label>電話</label><input id="f_phone" inputmode="tel" placeholder="例：0912-345-678"></div>
+      <div class="field"><label>金額（選填）</label><input id="f_price" type="number" min="0" step="1" placeholder="自動帶建議價，可改"></div>
+    </div>
+    <div class="field"><label>備註</label><textarea id="f_note" placeholder="其他要記的事…"></textarea></div>
+    <div class="hint" id="planHint"></div>
+    <div class="err" id="formErr" hidden></div>
+    <button class="btn btn-primary" type="submit" style="justify-content:center;padding:12px" id="saveBtn">建立訂單</button>
+  </form></div>
+</div></div>
+
+<!-- 方案管理 -->
+<div class="overlay" id="planOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="pTitle">管理方案</h2><div class="hsub">新增你自己的定期方案，之後會出現在「新增訂單」選項</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body">
+    <div class="section-title">目前的方案</div><div id="planList"></div>
+    <hr class="divider"><div class="section-title">＋ 新增一個方案</div>
+    <form class="order-form" id="planForm">
+      <div class="field"><label>方案名稱 <span class="req">*</span></label><input id="p_name" required placeholder="例：季節限定・淺焙年訂"></div>
+      <div class="row2"><div class="field"><label>badge 簡稱</label><input id="p_short" placeholder="例：淺焙年訂" maxlength="8"></div>
+        <div class="field"><label>期數 <span class="req">*</span></label><input id="p_total" type="number" min="1" max="36" value="12" required></div></div>
+      <div class="field"><label>配送頻率 <span class="req">*</span></label><div class="seg" id="p_cad" role="group" aria-label="配送頻率">
+        <button type="button" data-v="monthly" aria-pressed="true">月月配</button><button type="button" data-v="bimonthly" aria-pressed="false">雙月配</button></div></div>
+      <label class="checkline"><input type="checkbox" id="p_needitem"> 這個方案需要選「耳掛／浸泡」品項</label>
+      <div class="field"><label>方案說明（選填）</label><input id="p_desc" placeholder="例：每月不同產區、含限定小物"></div>
+      <div class="err" id="planErr" hidden></div>
+      <button class="btn btn-primary" type="submit" style="justify-content:center;padding:12px">新增方案</button>
+    </form>
+  </div>
+</div></div>
+
+<!-- 儲值詳情 -->
+<div class="overlay" id="walletOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="wTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="wTitle"></h2><div class="hsub" id="wSub"></div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body" id="wBody"></div>
+  <div class="modal-foot"><button class="link-danger" id="wDelBtn">刪除此客戶</button><button class="btn btn-ghost" data-close>關閉</button></div>
+</div></div>
+
+<!-- 新增儲值客戶 -->
+<div class="overlay" id="walletFormOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="wfTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="wfTitle">新增儲值客戶</h2><div class="hsub">建立會員儲值帳戶，之後可加值、扣款、查餘額</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body"><form class="order-form" id="walletForm">
+    <div class="field"><label>客戶姓名 <span class="req">*</span></label><input id="w_name" required placeholder="例：王小明"></div>
+    <div class="field"><label>電話</label><input id="w_phone" inputmode="tel" placeholder="例：0912-345-678"></div>
+    <div class="field"><label>初始儲值金額</label><input id="w_init" type="number" min="0" step="1" placeholder="例：3000（沒有可留空）"></div>
+    <div class="field"><label>備註</label><textarea id="w_note" placeholder="例：VIP、儲 3000 送 300…"></textarea></div>
+    <div class="err" id="walletErr" hidden></div>
+    <button class="btn btn-primary" type="submit" style="justify-content:center;padding:12px" id="wSaveBtn">建立儲值客戶</button>
+  </form></div>
+</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
+<script>
+const SB_URL="https://eviceuogqledhgfnksfg.supabase.co";
+const SB_KEY="sb_publishable_J5fU89Him5fyob_w3SphNg_obj-cVb-";
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+
+/* 內建方案 */
+const BUILTIN={
+  voyage:{name:"環遊世界喝咖啡・年訂",short:"環遊年訂",cls:"b-voyage",total:12,cadence:"monthly",price:12000,needItem:false,descr:"12 個月・每月不同主題・含 23 週年限定保溫杯 1 組"},
+  supply6:{name:"咖啡補給計畫・6 期",short:"補給6期",cls:"b-supply6",total:6,cadence:"bimonthly",needItem:true,prices:{onceAll:5888,pickup:5988,home:6288},descr:"雙月配・共 6 期"},
+  supply12:{name:"咖啡補給計畫・12 期",short:"補給12期",cls:"b-supply12",total:12,cadence:"monthly",needItem:true,prices:{onceAll:11288,pickup:11588,home:12188},descr:"月月配・共 12 期"},
+};
+const ITEMS={ear:{name:"耳掛",packs:30},soak:{name:"浸泡",packs:40}};
+const DELIV={onceAll:"一次取全年",pickup:"超商取貨",home:"宅配到府",selfpick:"門市自取"};
+const CAD={monthly:"月月配",bimonthly:"雙月配"};
+
+const nowYm=(()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");})();
+const today=()=>new Date().toISOString().slice(0,10);
+function addMonths(ym,k){let[y,m]=ym.split("-").map(Number);m=m-1+k;y+=Math.floor(m/12);m=((m%12)+12)%12;return y+"-"+String(m+1).padStart(2,"0");}
+function ymLabel(ym){if(!ym||!/^\d{4}-\d{2}$/.test(ym))return ym||"—";const[y,m]=ym.split("-");return y+" 年 "+Number(m)+" 月";}
+function genPeriods(total,cadence,startYm){const step=cadence==="bimonthly"?2:1,a=[];for(let i=0;i<total;i++)a.push({n:i+1,ym:addMonths(startYm,i*step),shipped:false,shippedAt:null});return a;}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function nt(n){return "NT$ "+Number(n||0).toLocaleString();}
+
+let view="subs";
+let orders=[],customPlans={},wallets=[];
+let filter="all",query="",wQuery="",openId=null,openW=null;
+let form={plan:null,item:null},planCad="monthly";
+
+function allPlans(){return {...BUILTIN,...customPlans};}
+function getDef(id){return allPlans()[id];}
+const $=s=>document.querySelector(s);
+
+/* ===== 資料層（Supabase）===== */
+async function loadAll(){
+  try{
+    const [oR,wR,pR]=await Promise.all([
+      sb.from("mango_orders").select("*").order("created_at",{ascending:false}),
+      sb.from("mango_wallets").select("*").order("created_at",{ascending:false}),
+      sb.from("mango_plans").select("*").order("created_at",{ascending:true}),
+    ]);
+    orders=oR.data||[]; wallets=wR.data||[];
+    customPlans={}; (pR.data||[]).forEach(r=>{customPlans[r.id]={name:r.name,short:r.short,total:r.total,cadence:r.cadence,needItem:r.need_item,descr:r.descr||"",cls:"b-custom"};});
+    render();
+    if(openId&&orders.find(o=>o.id===openId))openDetail(openId);
+    if(openW&&wallets.find(w=>w.id===openW))openWallet(openW);
+  }catch(e){console.error(e);}
+}
+
+/* 進度 */
+function stats(o){const P=o.periods||[];const total=P.length,shipped=P.filter(p=>p.shipped).length,remain=total-shipped;
+  const next=P.find(p=>!p.shipped);const overdue=next&&next.ym<nowYm;const dueThisMonth=next&&next.ym===nowYm;return{total,shipped,remain,next,overdue,dueThisMonth};}
+function walletBalance(w){return (w.txns||[]).reduce((s,t)=>s+(t.type==="topup"?Number(t.amount):-Number(t.amount)),0);}
+
+/* ===== 渲染 ===== */
+function render(){view==="subs"?renderSubs():renderWallet();}
+function renderSubs(){
+  let active=0,dueMonth=0,remainTotal=0,doneCnt=0;
+  orders.forEach(o=>{const s=stats(o);remainTotal+=s.remain;if(s.remain>0)active++;else doneCnt++;(o.periods||[]).forEach(p=>{if(!p.shipped&&p.ym<=nowYm)dueMonth++;});});
+  $("#tiles").innerHTML=`
+    <div class="tile"><div class="k">📦 進行中訂單</div><div class="v">${active}<small> 筆</small></div></div>
+    <div class="tile hot"><div class="k">🔔 本月（含逾期）待出貨</div><div class="v">${dueMonth}<small> 期</small></div></div>
+    <div class="tile"><div class="k">🕗 尚未出貨總期數</div><div class="v">${remainTotal}<small> 期</small></div></div>
+    <div class="tile"><div class="k">✅ 已完成訂單</div><div class="v">${doneCnt}<small> 筆</small></div></div>`;
+  let rows=orders.slice();
+  if(filter==="active")rows=rows.filter(o=>stats(o).remain>0);
+  else if(filter==="thismonth")rows=rows.filter(o=>(o.periods||[]).some(p=>!p.shipped&&p.ym<=nowYm));
+  else if(filter==="done")rows=rows.filter(o=>stats(o).remain===0);
+  if(query)rows=rows.filter(o=>(o.customer||"").toLowerCase().includes(query));
+  const list=$("#list");
+  if(!rows.length){list.innerHTML=`<div class="empty"><div class="big">${orders.length?"🔍":"📦"}</div><h2>${orders.length?"沒有符合的訂單":"還沒有任何訂單"}</h2><p>${orders.length?"換個篩選條件或搜尋看看。":"點右上角「＋ 新增訂單」，把客人下的定期方案登記進來。"}</p></div>`;return;}
+  list.innerHTML=rows.map(o=>{
+    const s=stats(o),pct=s.total?Math.round(s.shipped/s.total*100):0;
+    const item=o.item&&ITEMS[o.item]?ITEMS[o.item].name:"";
+    let pill,pillcls;
+    if(s.remain===0){pill="已全部出貨";pillcls="done";}else if(s.overdue){pill="逾期！剩 "+s.remain+" 期";pillcls="due";}else{pill="尚未出貨 "+s.remain+" 期";pillcls="go";}
+    const nextTxt=s.next?`<div class="next${s.overdue?" due":""}">下一期：<b>第 ${s.next.n} 期・${ymLabel(s.next.ym)}</b>${s.overdue?" ⚠ 已逾期":s.dueThisMonth?" ・本月":""}</div>`:`<div class="next">🎉 已完成所有配送</div>`;
+    return `<article class="card" tabindex="0" role="button" data-id="${o.id}">
+      <div class="who"><div class="name-row"><span class="cust">${esc(o.customer)}</span><span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span>${item?`<span class="meta">${item}</span>`:""}</div>
+        <div class="meta">${o.qty>1?`<b style="color:var(--ink)">×${o.qty} 組</b><span class="dot">·</span>`:""}${DELIV[o.deliv]||""}<span class="dot">·</span>${CAD[o.cadence]||""}<span class="dot">·</span>起 ${ymLabel(o.start_ym)}</div>${nextTxt}</div>
+      <div class="prog"><div class="frac"><b>${s.shipped}</b> / ${s.total} 期已出</div><div class="bar"><i style="width:${pct}%"></i></div><span class="remain-pill ${pillcls}">${pill}</span></div></article>`;
+  }).join("");
+}
+function renderWallet(){
+  const totalBal=wallets.reduce((s,w)=>s+walletBalance(w),0);
+  $("#wTiles").innerHTML=`<div class="tile"><div class="k">👛 儲值客戶</div><div class="v">${wallets.length}<small> 位</small></div></div>
+    <div class="tile wallet"><div class="k">💰 目前儲值總餘額</div><div class="v" style="font-size:26px">${nt(totalBal)}</div></div>`;
+  let rows=wallets.slice();
+  if(wQuery)rows=rows.filter(w=>((w.name||"")+(w.phone||"")).toLowerCase().includes(wQuery));
+  const list=$("#wList");
+  if(!rows.length){list.innerHTML=`<div class="empty"><div class="big">${wallets.length?"🔍":"💰"}</div><h2>${wallets.length?"找不到客戶":"還沒有儲值客戶"}</h2><p>${wallets.length?"換個關鍵字搜尋看看。":"點右上角「＋ 新增儲值客戶」，建立第一位。"}</p></div>`;return;}
+  list.innerHTML=rows.map(w=>{const bal=walletBalance(w);const last=(w.txns||[])[(w.txns||[]).length-1];
+    return `<article class="card" tabindex="0" role="button" data-wid="${w.id}">
+      <div class="who"><div class="name-row"><span class="cust">${esc(w.name)}</span>${w.phone?`<span class="meta">${esc(w.phone)}</span>`:""}</div>
+        <div class="meta">${(w.txns||[]).length} 筆紀錄${last?`<span class="dot">·</span>最近 ${esc(last.note||(last.type==="topup"?"加值":"扣款"))}`:""}</div></div>
+      <div class="bal-col"><div class="bnum ${bal<0?"neg":""}">${nt(bal)}</div><div class="blbl">目前餘額</div></div></article>`;}).join("");
+}
+
+/* 訂單詳情 */
+function openDetail(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;openId=id;
+  const s=stats(o);const item=o.item&&ITEMS[o.item]?ITEMS[o.item]:null;
+  $("#dTitle").textContent=o.customer;
+  $("#dSub").innerHTML=`<span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span> ${esc(o.plan_name||"")}`;
+  $("#dBody").innerHTML=`
+    <div class="detail-hero"><div class="num">${s.remain}</div><div class="lbl"><b>還有 ${s.remain} 期尚未出貨</b>已出 ${s.shipped} 期，共 ${s.total} 期${s.overdue?' ・<span style="color:var(--overdue);font-weight:700">有逾期</span>':""}</div></div>
+    <dl class="info-grid">
+      ${o.descr?`<dt>方案內容</dt><dd>${esc(o.descr)}${item?`・${item.name} ${item.packs*(o.qty||1)} 包/期`:""}</dd>`:(item?`<dt>品項</dt><dd>${item.name} ${item.packs*(o.qty||1)} 包/期</dd>`:"")}
+      <dt>組數</dt><dd>${o.qty||1} 組</dd><dt>收件方式</dt><dd>${DELIV[o.deliv]||"—"}</dd>
+      <dt>收件資訊</dt><dd>${esc(o.address)||"—"}</dd><dt>電話</dt><dd>${esc(o.phone)||"—"}</dd>
+      ${o.price!=null?`<dt>方案金額</dt><dd>${nt(o.price)}</dd>`:""}${o.note?`<dt>備註</dt><dd>${esc(o.note)}</dd>`:""}
+    </dl>
+    <div class="periods"><h3>📅 各期出貨狀況<span style="margin-left:auto;font-weight:600;color:var(--ink-faint)">標記後可改日期</span></h3>
+      ${(o.periods||[]).map(p=>{const overdue=!p.shipped&&p.ym<nowYm;const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?p.shippedAt:"";
+        return `<div class="p-row ${p.shipped?"ship":""}"><div class="pn">${p.n}</div>
+          <div class="p-info"><div class="pm">${ymLabel(p.ym)}</div><div class="ps ${overdue?"due":""}">${p.shipped?"✓ 已出貨":(overdue?"⚠ 逾期未出":p.ym===nowYm?"本月待出貨":"待出貨")}</div></div>
+          ${p.shipped?`<input type="date" class="pdate" data-p="${p.n}" value="${dv}" aria-label="出貨日期">`:""}
+          <button class="toggle ${p.shipped?"on":""}" data-p="${p.n}">${p.shipped?"已出貨":"標記已出"}</button></div>`;}).join("")}
+    </div>`;
+  $("#detailOverlay").hidden=false;
+}
+async function persistPeriods(o){try{await sb.from("mango_orders").update({periods:o.periods}).eq("id",o.id);}catch(e){console.warn(e);}}
+async function togglePeriod(n){const o=orders.find(x=>x.id===openId);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
+  p.shipped=!p.shipped;p.shippedAt=p.shipped?today():null;openDetail(openId);renderSubs();persistPeriods(o);}
+async function setPeriodDate(n,val){const o=orders.find(x=>x.id===openId);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
+  p.shippedAt=val||today();persistPeriods(o);}
+async function delOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;if(!confirm(`確定刪除「${o.customer}」的訂單？此動作無法復原。`))return;
+  try{await sb.from("mango_orders").delete().eq("id",o.id);}catch(e){console.warn(e);}closeAll();loadAll();}
+
+/* 儲值詳情 */
+function openWallet(id){
+  const w=wallets.find(x=>x.id===id);if(!w)return;openW=id;const bal=walletBalance(w);
+  $("#wTitle").textContent=w.name;
+  $("#wSub").innerHTML=`${w.phone?esc(w.phone):"—"}${w.note?` <span class="dot" style="opacity:.4">·</span> ${esc(w.note)}`:""}`;
+  const txns=(w.txns||[]).slice().reverse();
+  $("#wBody").innerHTML=`
+    <div class="detail-hero w"><div class="num ${bal<0?"neg":""}">${nt(bal)}</div><div class="lbl"><b>目前儲值餘額</b>共 ${(w.txns||[]).length} 筆紀錄</div></div>
+    <div class="txn-form"><div class="amt"><label>金額</label><input id="tx_amount" type="number" min="1" step="1" inputmode="numeric" placeholder="0"></div>
+      <div class="amt n2"><label>說明（選填）</label><input id="tx_note" placeholder="例：拿鐵 x1 / 加值"></div>
+      <button class="btn btn-topup" data-txn="topup">＋ 加值</button><button class="btn btn-spend" data-txn="spend">－ 扣款</button></div>
+    <div class="txns"><h3>🧾 交易紀錄</h3>${txns.length?txns.map(t=>{const up=t.type==="topup";
+      return `<div class="txn-row"><div class="ic ${up?"up":"dn"}">${up?"＋":"－"}</div><div class="tx-main"><div class="tx-note">${esc(t.note||(up?"加值":"扣款"))}</div><div class="tx-date">${esc(t.at||"")}</div></div><div class="tx-amt ${up?"up":"dn"}">${up?"+":"−"}${nt(t.amount).replace("NT$ ","")}</div></div>`;}).join(""):`<div style="color:var(--ink-soft);font-size:13px;padding:6px 2px">還沒有交易紀錄，用上面按鈕加值或扣款。</div>`}</div>`;
+  $("#walletOverlay").hidden=false;
+}
+async function addTxn(type){const w=wallets.find(x=>x.id===openW);if(!w)return;
+  const amt=Math.round(Number($("#tx_amount").value));if(!amt||amt<=0){$("#tx_amount").focus();return;}
+  const note=$("#tx_note").value.trim();
+  if(type==="spend"&&amt>walletBalance(w)){if(!confirm("扣款金額大於目前餘額，餘額會變負數。確定要扣？"))return;}
+  const txns=[...(w.txns||[]),{type,amount:amt,note,at:today()}];w.txns=txns;openWallet(openW);renderWallet();
+  try{await sb.from("mango_wallets").update({txns}).eq("id",w.id);}catch(e){console.warn(e);}}
+async function delWallet(){const w=wallets.find(x=>x.id===openW);if(!w)return;if(!confirm(`確定刪除儲值客戶「${w.name}」？餘額與所有紀錄都會消失，無法復原。`))return;
+  try{await sb.from("mango_wallets").delete().eq("id",w.id);}catch(e){console.warn(e);}closeAll();loadAll();}
+function openWalletForm(){$("#walletForm").reset();$("#walletErr").hidden=true;$("#walletFormOverlay").hidden=false;setTimeout(()=>$("#w_name").focus(),40);}
+async function submitWallet(e){e.preventDefault();const err=$("#walletErr");const name=$("#w_name").value.trim();if(!name){err.textContent="請填客戶姓名";err.hidden=false;return;}
+  const init=Math.round(Number($("#w_init").value))||0;
+  const rec={name,phone:$("#w_phone").value.trim(),note:$("#w_note").value.trim(),txns:init>0?[{type:"topup",amount:init,note:"初始儲值",at:today()}]:[]};
+  $("#wSaveBtn").disabled=true;
+  try{await sb.from("mango_wallets").insert(rec);}catch(ex){$("#wSaveBtn").disabled=false;err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
+  $("#wSaveBtn").disabled=false;closeAll();loadAll();}
+
+/* 新增訂單 */
+function renderPlanChoices(){const defs=allPlans();$("#f_plan").innerHTML=Object.keys(defs).map(id=>`<button type="button" data-v="${id}" aria-pressed="${form.plan===id}">${esc(defs[id].short||defs[id].name)}</button>`).join("");}
+function openForm(){form={plan:null,item:null};$("#orderForm").reset();renderPlanChoices();
+  $("#f_periods").innerHTML=Array.from({length:36},(_,i)=>`<option value="${i+1}">${i+1} 期</option>`).join("");$("#f_periods").value="12";
+  $("#f_start").value=nowYm;document.querySelectorAll('#f_item button').forEach(b=>b.setAttribute("aria-pressed","false"));
+  $("#itemField").style.display="none";$("#planHint").textContent="選擇方案後，系統會自動幫你排好每一期的出貨月份。";
+  $("#formErr").hidden=true;$("#formOverlay").hidden=false;setTimeout(()=>$("#f_customer").focus(),40);}
+function pickPlan(v){form.plan=v;document.querySelectorAll('#f_plan button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));
+  const d=getDef(v);if(d)$("#f_periods").value=String(d.total);$("#itemField").style.display=d&&d.needItem?"flex":"none";if(!d||!d.needItem)form.item=null;updateHint();}
+function pickItem(v){form.item=v;document.querySelectorAll('#f_item button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));updateHint();}
+function updateHint(){if(!form.plan){$("#planHint").textContent="選擇方案後，系統會自動幫你排好每一期的出貨月份。";return;}
+  const d=getDef(form.plan),start=$("#f_start").value||nowYm;const total=Math.max(1,parseInt($("#f_periods").value)||d.total);const qty=Math.max(1,parseInt($("#f_qty").value)||1);
+  const last=addMonths(start,(total-1)*(d.cadence==="bimonthly"?2:1));
+  const itemTxt=d.needItem?(form.item?`・${ITEMS[form.item].name} ${ITEMS[form.item].packs*qty} 包/期`:"・（請選品項）"):"";
+  $("#planHint").innerHTML=`<b>${esc(d.name)}</b>${qty>1?` ×${qty} 組`:""}${itemTxt}<br>${CAD[d.cadence]}，共 <b>${total} 期</b>：${ymLabel(start)} → ${ymLabel(last)}`;}
+function makeOrderRec(planId,input){const d=getDef(planId)||{name:planId,total:1,cadence:"monthly"};const total=input.total||d.total;
+  const auto=(d.price!=null)?d.price:(d.prices?d.prices[input.deliv]:null);const price=(input.price!=null&&input.price!=="")?Number(input.price):(auto!=null?auto:null);
+  return{customer:input.customer,plan:planId,plan_name:d.name,plan_short:d.short||d.name.slice(0,6),badge_cls:d.cls||"b-custom",cadence:d.cadence,descr:d.descr||"",item:d.needItem?(input.item||null):null,qty:input.qty||1,deliv:input.deliv,address:input.address||"",phone:input.phone||"",note:input.note||"",start_ym:input.startYm,price:price,periods:genPeriods(total,d.cadence,input.startYm)};}
+async function submitForm(e){e.preventDefault();const err=$("#formErr");const showErr=m=>{err.textContent=m;err.hidden=false;$("#saveBtn").disabled=false;};
+  const customer=$("#f_customer").value.trim();if(!customer)return showErr("請填客戶名稱");if(!form.plan)return showErr("請選擇方案");
+  if(getDef(form.plan).needItem&&!form.item)return showErr("請選擇品項（耳掛／浸泡）");
+  const input={customer,item:form.item,qty:Math.max(1,parseInt($("#f_qty").value)||1),total:Math.max(1,parseInt($("#f_periods").value)||getDef(form.plan).total),deliv:$("#f_deliv").value,address:$("#f_address").value.trim(),phone:$("#f_phone").value.trim(),price:$("#f_price").value,note:$("#f_note").value.trim(),startYm:$("#f_start").value||nowYm};
+  const rec=makeOrderRec(form.plan,input);$("#saveBtn").disabled=true;
+  try{await sb.from("mango_orders").insert(rec);}catch(ex){return showErr("儲存失敗，請再試一次。");}
+  $("#saveBtn").disabled=false;closeAll();loadAll();}
+
+/* 方案管理 */
+function openPlanMgr(){renderPlanList();$("#planForm").reset();planCad="monthly";document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="monthly")));$("#planErr").hidden=true;$("#planOverlay").hidden=false;}
+function renderPlanList(){const defs=allPlans();$("#planList").innerHTML=Object.keys(defs).map(id=>{const d=defs[id],isB=!!BUILTIN[id];
+  return `<div class="plan-item"><span class="badge ${d.cls||"b-custom"}">${esc(d.short||d.name)}</span><div class="pi-main"><div class="pi-name">${esc(d.name)}</div><div class="pi-sub">${CAD[d.cadence]}・共 ${d.total} 期${d.needItem?"・需選品項":""}</div></div>${isB?`<span class="tag-builtin">內建</span>`:`<button class="del-x" data-delplan="${id}">刪除</button>`}</div>`;}).join("");}
+async function submitPlan(e){e.preventDefault();const err=$("#planErr");const name=$("#p_name").value.trim();if(!name){err.textContent="請填方案名稱";err.hidden=false;return;}
+  const total=Math.max(1,Math.min(36,parseInt($("#p_total").value)||12));
+  const rec={name,short:$("#p_short").value.trim()||name.slice(0,6),total,cadence:planCad,need_item:$("#p_needitem").checked,descr:$("#p_desc").value.trim()};
+  try{await sb.from("mango_plans").insert(rec);}catch(ex){err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
+  $("#planForm").reset();planCad="monthly";document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="monthly")));await loadAll();renderPlanList();}
+async function delPlan(id){const d=getDef(id);if(!d)return;if(!confirm(`刪除方案「${d.name}」？（已建立的訂單不受影響）`))return;
+  try{await sb.from("mango_plans").delete().eq("id",id);}catch(e){console.warn(e);}await loadAll();renderPlanList();}
+
+/* 切換／關閉 */
+function setView(v){view=v;$("#subsView").hidden=v!=="subs";$("#walletView").hidden=v!=="wallet";$("#subsActions").hidden=v!=="subs";$("#walletActions").hidden=v!=="wallet";
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.view===v)));render();}
+function closeAll(){document.querySelectorAll(".overlay").forEach(o=>o.hidden=true);openId=null;openW=null;}
+
+/* 事件 */
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.view)));
+$("#addBtn").addEventListener("click",openForm);
+$("#planBtn").addEventListener("click",openPlanMgr);
+$("#addWalletBtn").addEventListener("click",openWalletForm);
+$("#list").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openDetail(c.dataset.id);});
+$("#list").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openDetail(e.target.dataset.id);}});
+$("#wList").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openWallet(c.dataset.wid);});
+$("#wList").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openWallet(e.target.dataset.wid);}});
+$("#dBody").addEventListener("click",e=>{const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
+$("#dBody").addEventListener("change",e=>{const d=e.target.closest(".pdate");if(d)setPeriodDate(Number(d.dataset.p),d.value);});
+$("#wBody").addEventListener("click",e=>{const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
+$("#delBtn").addEventListener("click",delOrder);
+$("#wDelBtn").addEventListener("click",delWallet);
+$("#orderForm").addEventListener("submit",submitForm);
+$("#walletForm").addEventListener("submit",submitWallet);
+$("#f_plan").addEventListener("click",e=>{const b=e.target.closest("button");if(b)pickPlan(b.dataset.v);});
+$("#f_item").addEventListener("click",e=>{const b=e.target.closest("button");if(b)pickItem(b.dataset.v);});
+$("#f_start").addEventListener("change",updateHint);
+$("#f_qty").addEventListener("input",updateHint);
+$("#f_periods").addEventListener("change",updateHint);
+$("#planForm").addEventListener("submit",submitPlan);
+$("#p_cad").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;planCad=b.dataset.v;document.querySelectorAll('#p_cad button').forEach(x=>x.setAttribute("aria-pressed",String(x===b)));});
+$("#planList").addEventListener("click",e=>{const b=e.target.closest("[data-delplan]");if(b)delPlan(b.dataset.delplan);});
+document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeAll));
+document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target===o)closeAll();}));
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeAll();});
+document.querySelectorAll("#subsView .chip").forEach(ch=>ch.addEventListener("click",()=>{filter=ch.dataset.f;document.querySelectorAll("#subsView .chip").forEach(c=>c.setAttribute("aria-pressed",String(c===ch)));renderSubs();}));
+$("#search").addEventListener("input",e=>{query=e.target.value.trim().toLowerCase();renderSubs();});
+$("#wSearch").addEventListener("input",e=>{wQuery=e.target.value.trim().toLowerCase();renderWallet();});
+$("#foot").textContent="芒果咖啡訂閱後台 · 資料存於雲端，僅登入者可見";
+
+/* ===== 登入 ===== */
+function showApp(){$("#boot").hidden=true;$("#authOverlay").hidden=true;$("#app").hidden=false;}
+function showLogin(){$("#boot").hidden=true;$("#app").hidden=true;$("#authOverlay").hidden=false;}
+$("#authForm").addEventListener("submit",async e=>{e.preventDefault();const msg=$("#authMsg");const email=$("#authEmail").value.trim();if(!email)return;
+  $("#authBtn").disabled=true;msg.className="auth-msg";msg.textContent="寄送中…";
+  try{const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.href.split("#")[0]}});
+    if(error)throw error;msg.className="auth-msg ok";msg.textContent="已寄出！請到 Email 收信，點信裡的登入連結就會進來（同一個瀏覽器開）。";
+  }catch(ex){msg.className="auth-msg err";msg.textContent="寄送失敗："+(ex.message||"請稍後再試");}
+  $("#authBtn").disabled=false;});
+$("#logoutBtn").addEventListener("click",async()=>{await sb.auth.signOut();showLogin();});
+(async()=>{
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){showApp();loadAll();}else{showLogin();}
+  sb.auth.onAuthStateChange((_e,sess)=>{if(sess){showApp();loadAll();}else{showLogin();}});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>芒果咖啡・訂閱查詢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@700;900&display=swap">
+<style>
+  :root{
+    --paper:#FAF5EC; --surface:#FFFFFF; --surface-2:#F4ECDD;
+    --ink:#2C2117; --ink-soft:#6F5C46; --ink-faint:#A2907A; --line:#E7DAC4;
+    --accent:#E68A1E; --accent-deep:#C56A12;
+    --good:#3E8E5A; --good-bg:#E4F0E5; --pending:#C87A1B; --pending-bg:#FBEAD2;
+    --overdue:#C0432F; --overdue-bg:#F7E0DA; --wallet:#2F7D8C; --wallet-bg:#DDEDEF;
+    --shadow:0 1px 2px rgba(44,33,23,.06),0 10px 30px rgba(44,33,23,.08); --radius:16px;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --paper:#191410; --surface:#231B14; --surface-2:#2C2318;
+    --ink:#F3E9DA; --ink-soft:#C3B098; --ink-faint:#8C7A63; --line:#3A2E20;
+    --accent:#F2A03E; --accent-deep:#F4B968;
+    --good:#68B984; --good-bg:#1E3326; --pending:#E7A24C; --pending-bg:#3A2C16;
+    --overdue:#E8735C; --overdue-bg:#3A211B; --wallet:#5FB6C6; --wallet-bg:#1B3238;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 34px rgba(0,0,0,.4);}}
+  :root[data-theme="dark"]{
+    --paper:#191410; --surface:#231B14; --surface-2:#2C2318;
+    --ink:#F3E9DA; --ink-soft:#C3B098; --ink-faint:#8C7A63; --line:#3A2E20;
+    --accent:#F2A03E; --accent-deep:#F4B968;
+    --good:#68B984; --good-bg:#1E3326; --pending:#E7A24C; --pending-bg:#3A2C16;
+    --overdue:#E8735C; --overdue-bg:#3A211B; --wallet:#5FB6C6; --wallet-bg:#1B3238;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 34px rgba(0,0,0,.4);}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);min-height:100vh;
+    font-family:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;line-height:1.55}
+  h1,h2,h3{font-family:"Noto Serif TC",Georgia,serif;margin:0;text-wrap:balance}
+  .wrap{max-width:560px;margin:0 auto;padding:34px 18px 70px}
+  .head{text-align:center;margin-bottom:26px}
+  .head .kicker{font-size:12.5px;letter-spacing:.28em;color:var(--accent-deep);font-weight:700;text-transform:uppercase}
+  .head h1{font-size:27px;margin:8px 0 6px}
+  .head p{margin:0;color:var(--ink-soft);font-size:14px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 20px}
+  form{display:flex;flex-direction:column;gap:14px}
+  label{font-size:13px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:6px}
+  input{width:100%;font-family:inherit;font-size:16px;color:var(--ink);background:var(--surface);
+    border:1px solid var(--line);border-radius:11px;padding:12px 13px}
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  .btn{border:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;border-radius:11px;
+    padding:13px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn:hover{filter:brightness(1.05)} .btn:disabled{opacity:.6;cursor:default}
+  .btn:focus-visible{outline:2px solid var(--accent-deep);outline-offset:2px}
+  .note{font-size:12px;color:var(--ink-faint);text-align:center;margin-top:14px;line-height:1.7}
+
+  .msg{margin-top:16px;padding:13px 15px;border-radius:12px;font-size:14px;font-weight:600}
+  .msg.err{background:var(--overdue-bg);color:var(--overdue)}
+  .msg.empty{background:var(--surface-2);color:var(--ink-soft)}
+
+  .results{margin-top:22px;display:flex;flex-direction:column;gap:14px}
+  .results[hidden]{display:none}
+  .hello{font-size:15px;color:var(--ink-soft)}
+  .hello b{color:var(--ink);font-size:17px}
+  .block{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .block-h{padding:14px 16px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
+  .block-h .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex:none}
+  .ic.sub{background:var(--pending-bg)} .ic.wal{background:var(--wallet-bg)}
+  .block-h h2{font-size:15px}
+  .block-b{padding:14px 16px 16px}
+
+  .sub-item{padding:12px 0;border-bottom:1px dashed var(--line)}
+  .sub-item:last-child{border-bottom:none;padding-bottom:0}
+  .sub-item:first-child{padding-top:0}
+  .sub-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:9px}
+  .sub-top .pn{font-size:16px;font-weight:700}
+  .sub-top .qty{font-size:12.5px;color:var(--ink-soft)}
+  .remain{margin-left:auto;font-size:13px;font-weight:700;padding:3px 11px;border-radius:999px}
+  .remain.go{background:var(--pending-bg);color:var(--pending)}
+  .remain.done{background:var(--good-bg);color:var(--good)}
+  .bar{height:9px;border-radius:99px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line);margin-bottom:8px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),#5fae7a)}
+  .sub-meta{font-size:13px;color:var(--ink-soft);display:flex;gap:6px;flex-wrap:wrap}
+  .sub-meta b{color:var(--ink)}
+
+  .bal-big{font-size:34px;font-weight:800;color:var(--wallet);font-variant-numeric:tabular-nums;line-height:1.1}
+  .bal-big.neg{color:var(--overdue)}
+  .bal-lbl{font-size:13px;color:var(--ink-soft);margin-top:2px}
+  .txns{margin-top:14px;display:flex;flex-direction:column;gap:7px}
+  .txn{display:flex;align-items:center;gap:10px;font-size:13.5px}
+  .txn .t-ic{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-weight:800;flex:none;font-size:12px}
+  .t-ic.up{background:var(--wallet-bg);color:var(--wallet)} .t-ic.dn{background:var(--overdue-bg);color:var(--overdue)}
+  .txn .t-note{margin-right:auto} .txn .t-date{color:var(--ink-faint);font-size:11.5px}
+  .txn .t-amt{font-weight:700;font-variant-numeric:tabular-nums}
+  .t-amt.up{color:var(--wallet)} .t-amt.dn{color:var(--overdue)}
+  .more{font-size:12px;color:var(--ink-faint);text-align:center;margin-top:10px}
+
+  .again{margin-top:20px;text-align:center}
+  .again button{background:none;border:none;color:var(--accent-deep);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="kicker">MANGO COFFEE</div>
+    <h1>訂閱進度查詢</h1>
+    <p>輸入電話與姓名，查你的定期配送與儲值餘額</p>
+  </div>
+
+  <div class="card" id="formCard">
+    <form id="lookupForm">
+      <div>
+        <label for="phone">電話</label>
+        <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="例：0912-345-678" required>
+      </div>
+      <div>
+        <label for="name">姓名</label>
+        <input id="name" type="text" autocomplete="name" placeholder="與當初訂購時填的一樣" required>
+      </div>
+      <button class="btn" type="submit" id="goBtn">查詢我的進度</button>
+    </form>
+    <div id="msg"></div>
+    <div class="note">查詢資料僅供本人核對；如有疑問請與門市聯繫。</div>
+  </div>
+
+  <div class="results" id="results" hidden></div>
+  <div class="again" id="again" hidden><button type="button" id="againBtn">← 查詢另一位</button></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
+<script>
+const SB_URL="https://eviceuogqledhgfnksfg.supabase.co";
+const SB_KEY="sb_publishable_J5fU89Him5fyob_w3SphNg_obj-cVb-";
+const sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+const $=s=>document.querySelector(s);
+const nowYm=(()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");})();
+const CAD={monthly:"月月配",bimonthly:"雙月配"};
+function ymLabel(ym){if(!ym||!/^\d{4}-\d{2}$/.test(ym))return ym||"—";const[y,m]=ym.split("-");return y+" 年 "+Number(m)+" 月";}
+function nt(n){return "NT$ "+Number(n||0).toLocaleString();}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function walletBalance(txns){return (txns||[]).reduce((s,t)=>s+(t.type==="topup"?Number(t.amount):-Number(t.amount)),0);}
+
+function showMsg(cls,text){$("#msg").className="msg "+cls;$("#msg").textContent=text;}
+function clearMsg(){$("#msg").className="";$("#msg").textContent="";}
+
+$("#lookupForm").addEventListener("submit",async e=>{
+  e.preventDefault();clearMsg();
+  const phone=$("#phone").value.trim(), name=$("#name").value.trim();
+  if(!phone||!name)return;
+  $("#goBtn").disabled=true;$("#goBtn").textContent="查詢中…";
+  try{
+    const {data,error}=await sb.rpc("mango_customer_lookup",{p_phone:phone,p_name:name});
+    if(error)throw error;
+    if(!data||!data.found){
+      showMsg("empty","查不到資料。請確認電話和姓名跟當初訂購時填的完全一樣，或與門市確認。");
+      $("#results").hidden=true;$("#again").hidden=true;
+    }else{
+      renderResults(name,data);
+    }
+  }catch(ex){
+    showMsg("err","查詢時發生問題，請稍後再試一次。");
+    console.error(ex);
+  }finally{
+    $("#goBtn").disabled=false;$("#goBtn").textContent="查詢我的進度";
+  }
+});
+
+function renderResults(name,data){
+  const orders=data.orders||[], wallets=data.wallets||[];
+  let html=`<div class="hello">你好，<b>${esc(name)}</b> ☕</div>`;
+
+  if(orders.length){
+    html+=`<div class="block"><div class="block-h"><span class="ic sub">📦</span><h2>定期配送進度</h2></div><div class="block-b">`;
+    html+=orders.map(o=>{
+      const periods=o.periods||[];
+      const total=periods.length, shipped=periods.filter(p=>p.shipped).length, remain=total-shipped;
+      const pct=total?Math.round(shipped/total*100):0;
+      const next=periods.find(p=>!p.shipped);
+      const qty=o.qty&&o.qty>1?` ×${o.qty} 組`:"";
+      const remCls=remain===0?"done":"go";
+      const remTxt=remain===0?"已全部收到":"還有 "+remain+" 期";
+      let nextTxt = next
+        ? `下一期：<b>${ymLabel(next.ym)}</b>${next.ym<nowYm?"（安排中）":next.ym===nowYm?"（本月）":""}`
+        : "🎉 已全部配送完成";
+      return `<div class="sub-item">
+        <div class="sub-top"><span class="pn">${esc(o.plan_name||o.plan_short||"定期方案")}</span>
+          <span class="qty">${CAD[o.cadence]||""}${qty}</span>
+          <span class="remain ${remCls}">${remTxt}</span></div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+        <div class="sub-meta"><span>已配送 <b>${shipped}</b> / ${total} 期</span><span>·</span><span>${nextTxt}</span></div>
+      </div>`;
+    }).join("");
+    html+=`</div></div>`;
+  }
+
+  if(wallets.length){
+    wallets.forEach(w=>{
+      const txns=(w.txns||[]).slice();
+      const bal=walletBalance(txns);
+      const recent=txns.slice(-5).reverse();
+      html+=`<div class="block"><div class="block-h"><span class="ic wal">💰</span><h2>儲值餘額</h2></div><div class="block-b">
+        <div class="bal-big ${bal<0?"neg":""}">${nt(bal)}</div>
+        <div class="bal-lbl">目前可用餘額</div>`;
+      if(recent.length){
+        html+=`<div class="txns">`+recent.map(t=>{const up=t.type==="topup";
+          return `<div class="txn"><span class="t-ic ${up?"up":"dn"}">${up?"＋":"－"}</span>
+            <span class="t-note">${esc(t.note||(up?"加值":"消費"))}</span>
+            <span class="t-date">${esc(t.at||"")}</span>
+            <span class="t-amt ${up?"up":"dn"}">${up?"+":"−"}${nt(t.amount).replace("NT$ ","")}</span></div>`;}).join("")+`</div>`;
+        if(txns.length>5)html+=`<div class="more">只顯示最近 5 筆</div>`;
+      }
+      html+=`</div></div>`;
+    });
+  }
+
+  $("#results").innerHTML=html;
+  $("#results").hidden=false;
+  $("#again").hidden=false;
+  clearMsg();
+  $("#formCard").hidden=true;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+$("#againBtn").addEventListener("click",()=>{
+  $("#results").hidden=true;$("#again").hidden=true;$("#formCard").hidden=false;
+  $("#phone").value="";$("#name").value="";clearMsg();$("#phone").focus();
+});
+</script>
+</body>
+</html>
