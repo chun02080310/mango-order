@@ -192,6 +192,7 @@
     <div class="hdr-actions" id="walletActions" hidden>
       <button class="btn btn-primary" id="addWalletBtn">＋ 新增儲值客戶</button>
     </div>
+    <button class="btn btn-ghost" id="teamBtn" title="團隊">👥 團隊</button>
     <button class="logout" id="logoutBtn" title="登出">登出</button>
   </header>
 
@@ -297,6 +298,25 @@
     <div class="err" id="walletErr" hidden></div>
     <button class="btn btn-primary" type="submit" style="justify-content:center;padding:12px" id="wSaveBtn">建立儲值客戶</button>
   </form></div>
+</div></div>
+
+<!-- 團隊 -->
+<div class="overlay" id="teamOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="tmTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="tmTitle">團隊成員</h2><div class="hsub" id="tmSub">只有擁有者可以邀請或移除夥伴</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body">
+    <div class="section-title">目前成員</div>
+    <div id="teamList"></div>
+    <div id="inviteWrap" hidden>
+      <hr class="divider"><div class="section-title">＋ 邀請夥伴</div>
+      <form class="order-form" id="teamForm">
+        <div class="field"><label>夥伴的 Email <span class="req">*</span></label><input id="tm_email" type="email" required placeholder="partner@example.com"></div>
+        <div class="hint">邀請後，對方用這個 Email 到後台登入就能進來（一樣是收信點連結）。加值扣款、刪除等都做得到；只有你能再邀請別人。</div>
+        <div class="err" id="teamErr" hidden></div>
+        <button class="btn btn-primary" type="submit" style="justify-content:center;padding:12px">加入夥伴</button>
+      </form>
+    </div>
+    <div id="notOwner" hidden style="color:var(--ink-soft);font-size:13px;margin-top:12px">你是協作夥伴，邀請新成員的權限只有擁有者有。</div>
+  </div>
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
@@ -543,11 +563,37 @@ $("#authForm").addEventListener("submit",async e=>{e.preventDefault();const msg=
     if(error)throw error;msg.className="auth-msg ok";msg.textContent="已寄出！請到 Email 收信，點信裡的登入連結就會進來（同一個瀏覽器開）。";
   }catch(ex){msg.className="auth-msg err";msg.textContent="寄送失敗："+(ex.message||"請稍後再試");}
   $("#authBtn").disabled=false;});
-$("#logoutBtn").addEventListener("click",async()=>{await sb.auth.signOut();showLogin();});
+/* ===== 團隊 ===== */
+let myEmail=null,isOwner=false,members=[];
+async function loadMembers(){
+  try{const {data}=await sb.from("mango_members").select("*").order("created_at",{ascending:true});
+    members=data||[];const me=members.find(m=>(m.email||"").toLowerCase()===(myEmail||"").toLowerCase());isOwner=!!(me&&me.role==="owner");
+  }catch(e){members=[];isOwner=false;}
+}
+function openTeam(){renderTeam();$("#teamOverlay").hidden=false;}
+function renderTeam(){
+  $("#teamList").innerHTML=members.length?members.map(m=>{const own=m.role==="owner";const meRow=(m.email||"").toLowerCase()===(myEmail||"").toLowerCase();
+    return `<div class="plan-item"><div class="pi-main"><div class="pi-name">${esc(m.email)}${meRow?' <span class="tag-builtin">你</span>':''}</div><div class="pi-sub">${own?"擁有者":"協作夥伴"}</div></div>${(isOwner&&!own)?`<button class="del-x" data-delmem="${esc(m.email)}">移除</button>`:`<span class="tag-builtin">${own?"擁有者":"夥伴"}</span>`}</div>`;}).join(""):`<div style="color:var(--ink-soft);font-size:13px">還沒有成員資料。</div>`;
+  $("#inviteWrap").hidden=!isOwner;$("#notOwner").hidden=isOwner;$("#teamErr").hidden=true;
+}
+async function invite(email){const e=(email||"").trim().toLowerCase();if(!e)return;
+  try{const {error}=await sb.from("mango_members").insert({email:e,role:"member"});if(error)throw error;$("#tm_email").value="";await loadMembers();renderTeam();}
+  catch(ex){const el=$("#teamErr");el.textContent="加入失敗："+(ex.message||"請確認 Email 是否已存在");el.hidden=false;}
+}
+async function removeMember(email){if(!confirm(`移除夥伴「${email}」？之後他就無法登入後台。`))return;
+  try{await sb.from("mango_members").delete().eq("email",email);await loadMembers();renderTeam();}catch(e){console.warn(e);}
+}
+$("#teamBtn").addEventListener("click",openTeam);
+$("#teamForm").addEventListener("submit",e=>{e.preventDefault();invite($("#tm_email").value);});
+$("#teamList").addEventListener("click",e=>{const b=e.target.closest("[data-delmem]");if(b)removeMember(b.dataset.delmem);});
+
+/* ===== 登入 ===== */
+async function onLoggedIn(session){myEmail=(session.user&&session.user.email)||null;showApp();await loadMembers();loadAll();}
+$("#logoutBtn").addEventListener("click",async()=>{await sb.auth.signOut();myEmail=null;isOwner=false;showLogin();});
 (async()=>{
   const {data:{session}}=await sb.auth.getSession();
-  if(session){showApp();loadAll();}else{showLogin();}
-  sb.auth.onAuthStateChange((_e,sess)=>{if(sess){showApp();loadAll();}else{showLogin();}});
+  if(session){onLoggedIn(session);}else{showLogin();}
+  sb.auth.onAuthStateChange((_e,sess)=>{if(sess){onLoggedIn(sess);}else{showLogin();}});
 })();
 </script>
 </body>
