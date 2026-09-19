@@ -152,6 +152,15 @@
   .checkline{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--ink)}.checkline input{width:auto}
   .plan-item{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--line);border-radius:11px;margin-bottom:9px;background:var(--surface)}
   .plan-item .pi-main{margin-right:auto;min-width:0}.plan-item .pi-name{font-weight:700;font-size:14.5px}.plan-item .pi-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .plan-acc{border:1px solid var(--line);border-radius:11px;margin-bottom:9px;background:var(--surface);overflow:hidden}
+  .plan-head{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;font-family:inherit;padding:11px 13px;cursor:pointer;color:var(--ink)}
+  .plan-head:hover{background:var(--surface-2)}
+  .plan-head .pi-name{font-weight:700;font-size:14.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .plan-head .chev{transition:transform .15s;color:var(--ink-faint);font-size:12px;flex:none}
+  .plan-acc.open .chev{transform:rotate(90deg)}
+  .plan-body{padding:2px 13px 13px;font-size:13px;color:var(--ink-soft);display:flex;flex-direction:column;gap:8px}
+  .plan-body[hidden]{display:none}
+  .plan-body .actions{display:flex;gap:8px;flex-wrap:wrap}
   .tag-builtin{font-size:11px;font-weight:700;color:var(--ink-faint);background:var(--surface-2);padding:3px 8px;border-radius:6px}
   .del-x{background:none;border:1px solid var(--line);color:var(--overdue);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}.del-x:hover{background:var(--overdue-bg)}
   .divider{border:none;border-top:1px solid var(--line);margin:18px 0 4px}
@@ -562,8 +571,23 @@ function editPlan(id){const d=customPlans[id];if(!d)return;editingPlanId=id;
   $("#p_name").value=d.name;$("#p_short").value=d.short||"";$("#p_total").value=d.total;$("#p_desc").value=d.descr||"";$("#p_needitem").checked=!!d.needItem;
   planCad=d.cadence;document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===d.cadence)));
   const sub=document.querySelector('#planForm button[type=submit]');if(sub)sub.textContent="儲存修改";$("#p_name").focus();}
-function renderPlanList(){const defs=allPlans();$("#planList").innerHTML=Object.keys(defs).map(id=>{const d=defs[id],isB=!!BUILTIN[id];
-  return `<div class="plan-item"><span class="badge ${d.cls||"b-custom"}">${esc(d.short||d.name)}</span><div class="pi-main"><div class="pi-name">${esc(d.name)}</div><div class="pi-sub">${CAD[d.cadence]}・共 ${d.total} 期${d.needItem?"・需選品項":""}</div></div>${isB?`<span class="tag-builtin">內建</span>`:`<button class="del-x" data-editplan="${id}" style="color:var(--accent-deep)">編輯</button><button class="del-x" data-delplan="${id}">刪除</button>`}</div>`;}).join("");}
+function renderPlanList(){const defs=allPlans();const open=new Set([...document.querySelectorAll('#planList .plan-acc.open')].map(e=>e.dataset.id));
+  $("#planList").innerHTML=Object.keys(defs).map(id=>{const d=defs[id],isB=!!BUILTIN[id];const isOpen=open.has(id);
+  const priceTxt=d.price!=null?("方案金額 NT$ "+Number(d.price).toLocaleString()):(d.prices?"金額依收件方式而定":"");
+  return `<div class="plan-acc${isOpen?" open":""}" data-id="${id}">
+    <button type="button" class="plan-head" data-toggle="${id}">
+      <span class="badge ${d.cls||"b-custom"}">${esc(d.short||d.name)}</span>
+      <span class="pi-name">${esc(d.name)}</span>
+      ${isB?`<span class="tag-builtin">內建</span>`:``}
+      <span class="chev">▸</span>
+    </button>
+    <div class="plan-body"${isOpen?"":" hidden"}>
+      <div>${CAD[d.cadence]}・共 ${d.total} 期${d.needItem?"・需選耳掛/浸泡品項":"・不用選品項"}</div>
+      ${d.descr?`<div>說明：${esc(d.descr)}</div>`:``}
+      ${priceTxt?`<div>${priceTxt}</div>`:``}
+      <div class="actions">${isB?`<span style="color:var(--ink-faint)">內建方案，不可修改</span>`:`<button class="del-x" data-editplan="${id}" style="color:var(--accent-deep)">✎ 編輯</button><button class="del-x" data-delplan="${id}">刪除</button>`}</div>
+    </div>
+  </div>`;}).join("");}
 async function submitPlan(e){e.preventDefault();const err=$("#planErr");const name=$("#p_name").value.trim();if(!name){err.textContent="請填方案名稱";err.hidden=false;return;}
   const total=Math.max(1,Math.min(36,parseInt($("#p_total").value)||12));
   const rec={name,short:$("#p_short").value.trim()||name.slice(0,6),total,cadence:planCad,need_item:$("#p_needitem").checked,descr:$("#p_desc").value.trim()};
@@ -601,7 +625,7 @@ $("#f_qty").addEventListener("input",updateHint);
 $("#f_periods").addEventListener("change",updateHint);
 $("#planForm").addEventListener("submit",submitPlan);
 $("#p_cad").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;planCad=b.dataset.v;document.querySelectorAll('#p_cad button').forEach(x=>x.setAttribute("aria-pressed",String(x===b)));});
-$("#planList").addEventListener("click",e=>{const del=e.target.closest("[data-delplan]");if(del){delPlan(del.dataset.delplan);return;}const ed=e.target.closest("[data-editplan]");if(ed)editPlan(ed.dataset.editplan);});
+$("#planList").addEventListener("click",e=>{const t=e.target.closest("[data-toggle]");if(t){const acc=t.closest(".plan-acc");const body=acc.querySelector(".plan-body");const isOpen=acc.classList.toggle("open");body.hidden=!isOpen;return;}const del=e.target.closest("[data-delplan]");if(del){delPlan(del.dataset.delplan);return;}const ed=e.target.closest("[data-editplan]");if(ed)editPlan(ed.dataset.editplan);});
 document.getElementById("planCloseX").addEventListener("click",closePlanMgr);
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeAll));
 document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target!==o)return;if(o.id==="planOverlay")closePlanMgr();else closeAll();}));
