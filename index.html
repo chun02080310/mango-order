@@ -145,7 +145,7 @@ const CAD={monthly:"月月配",bimonthly:"雙月配"};
 function ymLabel(ym){if(!ym||!/^\d{4}-\d{2}$/.test(ym))return ym||"—";const[y,m]=ym.split("-");return y+" 年 "+Number(m)+" 月";}
 function nt(n){return "NT$ "+Number(n||0).toLocaleString();}
 function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-function walletBalance(txns){return (txns||[]).reduce((s,t)=>s+(t.type==="topup"?Number(t.amount):-Number(t.amount)),0);}
+function kBal(txns,kind){return (txns||[]).reduce((s,t)=>{if((t.kind||"cash")!==kind)return s;return s+(t.type==="topup"?Number(t.amount):-Number(t.amount));},0);}
 
 function showMsg(cls,text){$("#msg").className="msg "+cls;$("#msg").textContent=text;}
 function clearMsg(){$("#msg").className="";$("#msg").textContent="";}
@@ -203,18 +203,20 @@ function renderResults(name,data){
   if(wallets.length){
     wallets.forEach(w=>{
       const txns=(w.txns||[]).slice();
-      const bal=walletBalance(txns);
-      const recent=txns.slice(-5).reverse();
-      html+=`<div class="block"><div class="block-h"><span class="ic wal">💰</span><h2>儲值餘額</h2></div><div class="block-b">
-        <div class="bal-big ${bal<0?"neg":""}">${nt(bal)}</div>
-        <div class="bal-lbl">目前可用餘額</div>`;
+      const cash=kBal(txns,"cash"),bonus=kBal(txns,"bonus");
+      const recent=txns.slice(-6).reverse();
+      html+=`<div class="block"><div class="block-h"><span class="ic wal">💰</span><h2>儲值 / 紅利</h2></div><div class="block-b">
+        <div style="display:flex;gap:18px;flex-wrap:wrap">
+          <div><div class="bal-big ${cash<0?"neg":""}" style="font-size:30px">${nt(cash)}</div><div class="bal-lbl">儲值金餘額</div></div>
+          <div><div class="bal-big" style="font-size:30px;color:var(--accent-deep)">${nt(bonus)}</div><div class="bal-lbl">🎁 紅利餘額</div></div>
+        </div>`;
       if(recent.length){
-        html+=`<div class="txns">`+recent.map(t=>{const up=t.type==="topup";
+        html+=`<div class="txns">`+recent.map(t=>{const up=t.type==="topup";const bk=(t.kind||"cash")==="bonus";
           return `<div class="txn"><span class="t-ic ${up?"up":"dn"}">${up?"＋":"－"}</span>
-            <span class="t-note">${esc(t.note||(up?"加值":"消費"))}</span>
+            <span class="t-note">${bk?"🎁 ":""}${esc(t.note||(up?"加值":"消費"))}</span>
             <span class="t-date">${esc(t.at||"")}</span>
             <span class="t-amt ${up?"up":"dn"}">${up?"+":"−"}${nt(t.amount).replace("NT$ ","")}</span></div>`;}).join("")+`</div>`;
-        if(txns.length>5)html+=`<div class="more">只顯示最近 5 筆</div>`;
+        if(txns.length>6)html+=`<div class="more">只顯示最近 6 筆</div>`;
       }
       html+=`</div></div>`;
     });

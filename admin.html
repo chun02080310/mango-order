@@ -133,6 +133,10 @@
   .txn-form input{font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 11px;width:100%}
   .txn-form input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
   .btn-topup{background:var(--wallet);color:#fff}.btn-spend{background:var(--surface);color:var(--overdue);border:1px solid var(--overdue)}
+  .kind-btn{flex:1;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-family:inherit;font-size:13.5px;font-weight:700;padding:9px;border-radius:9px;cursor:pointer}
+  .kind-btn[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:transparent}
+  .kind-tag{font-size:10.5px;font-weight:800;padding:2px 6px;border-radius:5px;background:var(--wallet-bg);color:var(--wallet)}
+  .kind-tag.bonus{background:var(--pending-bg);color:var(--accent-deep)}
   .txn-row{display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px}
   .txn-row .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:14px;flex:none;font-weight:800}
   .txn-row .ic.up{background:var(--wallet-bg);color:var(--wallet)}.txn-row .ic.dn{background:var(--overdue-bg);color:var(--overdue)}
@@ -342,7 +346,10 @@
   <div class="modal-body"><form class="order-form" id="walletForm">
     <div class="field"><label>客戶姓名 <span class="req">*</span></label><input id="w_name" required placeholder="例：王小明"></div>
     <div class="field"><label>電話</label><input id="w_phone" inputmode="tel" placeholder="例：0912-345-678"></div>
-    <div class="field"><label>初始儲值金額</label><input id="w_init" type="number" min="0" step="1" placeholder="例：3000（沒有可留空）"></div>
+    <div class="row2">
+      <div class="field"><label>初始儲值金</label><input id="w_init" type="number" min="0" step="1" placeholder="例：3000"></div>
+      <div class="field"><label>初始紅利</label><input id="w_bonus" type="number" min="0" step="1" placeholder="例：300"></div>
+    </div>
     <div class="field"><label>備註</label><textarea id="w_note" placeholder="例：VIP、儲 3000 送 300…"></textarea></div>
     <div class="err" id="walletErr" hidden></div>
     <button class="btn btn-primary" type="submit" style="justify-content:center;padding:12px" id="wSaveBtn">建立儲值客戶</button>
@@ -407,7 +414,7 @@ function nt(n){return "NT$ "+Number(n||0).toLocaleString();}
 
 let view="subs";
 let orders=[],customPlans={},wallets=[];
-let filter="all",query="",wQuery="",openId=null,openW=null;
+let filter="all",query="",wQuery="",openId=null,openW=null,txKind="cash";
 let form={plan:null,item:null},planCad="monthly",editingPlanId=null;
 
 function allPlans(){return {...BUILTIN,...customPlans};}
@@ -433,7 +440,9 @@ async function loadAll(){
 /* 進度 */
 function stats(o){const P=o.periods||[];const total=P.length,shipped=P.filter(p=>p.shipped).length,remain=total-shipped;
   const next=P.find(p=>!p.shipped);const overdue=next&&next.ym<nowYm;const dueThisMonth=next&&next.ym===nowYm;return{total,shipped,remain,next,overdue,dueThisMonth};}
-function walletBalance(w){return (w.txns||[]).reduce((s,t)=>s+(t.type==="topup"?Number(t.amount):-Number(t.amount)),0);}
+function kBal(w,kind){return (w.txns||[]).reduce((s,t)=>{if((t.kind||"cash")!==kind)return s;return s+(t.type==="topup"?Number(t.amount):-Number(t.amount));},0);}
+function cashBal(w){return kBal(w,"cash");}
+function bonusBal(w){return kBal(w,"bonus");}
 
 /* ===== 渲染 ===== */
 function render(){view==="subs"?renderSubs():renderWallet();}
@@ -466,18 +475,21 @@ function renderSubs(){
   }).join("");
 }
 function renderWallet(){
-  const totalBal=wallets.reduce((s,w)=>s+walletBalance(w),0);
+  const totalCash=wallets.reduce((s,w)=>s+cashBal(w),0);
+  const totalBonus=wallets.reduce((s,w)=>s+bonusBal(w),0);
   $("#wTiles").innerHTML=`<div class="tile"><div class="k">👛 儲值客戶</div><div class="v">${wallets.length}<small> 位</small></div></div>
-    <div class="tile wallet"><div class="k">💰 目前儲值總餘額</div><div class="v" style="font-size:26px">${nt(totalBal)}</div></div>`;
+    <div class="tile wallet"><div class="k">💰 儲值金總額</div><div class="v" style="font-size:25px">${nt(totalCash)}</div></div>
+    <div class="tile"><div class="k">🎁 紅利總額</div><div class="v" style="font-size:25px;color:var(--accent-deep)">${nt(totalBonus)}</div></div>`;
   let rows=wallets.slice();
   if(wQuery)rows=rows.filter(w=>((w.name||"")+(w.phone||"")).toLowerCase().includes(wQuery));
   const list=$("#wList");
   if(!rows.length){list.innerHTML=`<div class="empty"><div class="big">${wallets.length?"🔍":"💰"}</div><h2>${wallets.length?"找不到客戶":"還沒有儲值客戶"}</h2><p>${wallets.length?"換個關鍵字搜尋看看。":"點右上角「＋ 新增儲值客戶」，建立第一位。"}</p></div>`;return;}
-  list.innerHTML=rows.map(w=>{const bal=walletBalance(w);const last=(w.txns||[])[(w.txns||[]).length-1];
+  list.innerHTML=rows.map(w=>{const cash=cashBal(w),bonus=bonusBal(w);
     return `<article class="card" tabindex="0" role="button" data-wid="${w.id}">
       <div class="who"><div class="name-row"><span class="cust">${esc(w.name)}</span>${w.phone?`<span class="meta">${esc(w.phone)}</span>`:""}</div>
-        <div class="meta">${(w.txns||[]).length} 筆紀錄${last?`<span class="dot">·</span>最近 ${esc(last.note||(last.type==="topup"?"加值":"扣款"))}`:""}</div></div>
-      <div class="bal-col"><div class="bnum ${bal<0?"neg":""}">${nt(bal)}</div><div class="blbl">目前餘額</div></div></article>`;}).join("");
+        <div class="meta">${(w.txns||[]).length} 筆紀錄</div></div>
+      <div class="bal-col"><div class="bnum ${cash<0?"neg":""}">${nt(cash)}</div><div class="blbl">儲值金</div>
+        <div style="font-size:13px;font-weight:800;color:var(--accent-deep);margin-top:3px">🎁 ${nt(bonus)}</div></div></article>`;}).join("");
 }
 
 /* 訂單詳情 */
@@ -513,31 +525,45 @@ async function delOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;if(
 
 /* 儲值詳情 */
 function openWallet(id){
-  const w=wallets.find(x=>x.id===id);if(!w)return;openW=id;const bal=walletBalance(w);
+  const w=wallets.find(x=>x.id===id);if(!w)return;openW=id;
+  const cash=cashBal(w),bonus=bonusBal(w);
   $("#wTitle").textContent=w.name;
   $("#wSub").innerHTML=`${w.phone?esc(w.phone):"—"}${w.note?` <span class="dot" style="opacity:.4">·</span> ${esc(w.note)}`:""}`;
   const txns=(w.txns||[]).slice().reverse();
   $("#wBody").innerHTML=`
-    <div class="detail-hero w"><div class="num ${bal<0?"neg":""}">${nt(bal)}</div><div class="lbl"><b>目前儲值餘額</b>共 ${(w.txns||[]).length} 筆紀錄</div></div>
-    <div class="txn-form"><div class="amt"><label>金額</label><input id="tx_amount" type="number" min="1" step="1" inputmode="numeric" placeholder="0"></div>
-      <div class="amt n2"><label>說明（選填）</label><input id="tx_note" placeholder="例：拿鐵 x1 / 加值"></div>
-      <button class="btn btn-topup" data-txn="topup">＋ 加值</button><button class="btn btn-spend" data-txn="spend">－ 扣款</button></div>
-    <div class="txns"><h3>🧾 交易紀錄</h3>${txns.length?txns.map(t=>{const up=t.type==="topup";
-      return `<div class="txn-row"><div class="ic ${up?"up":"dn"}">${up?"＋":"－"}</div><div class="tx-main"><div class="tx-note">${esc(t.note||(up?"加值":"扣款"))}</div><div class="tx-date">${esc(t.at||"")}</div></div><div class="tx-amt ${up?"up":"dn"}">${up?"+":"−"}${nt(t.amount).replace("NT$ ","")}</div></div>`;}).join(""):`<div style="color:var(--ink-soft);font-size:13px;padding:6px 2px">還沒有交易紀錄，用上面按鈕加值或扣款。</div>`}</div>`;
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <div class="detail-hero w" style="flex:1;margin:0;padding:13px 15px"><div><div class="num ${cash<0?"neg":""}" style="font-size:27px">${nt(cash)}</div><div class="lbl"><b>儲值金餘額</b></div></div></div>
+      <div class="detail-hero" style="flex:1;margin:0;padding:13px 15px;background:var(--pending-bg)"><div><div class="num" style="font-size:27px;color:var(--accent-deep)">${nt(bonus)}</div><div class="lbl"><b>紅利餘額</b></div></div></div>
+    </div>
+    <div class="txn-form">
+      <div style="width:100%;display:flex;gap:8px">
+        <button type="button" class="kind-btn" data-kind="cash" aria-pressed="${txKind==="cash"}">💰 儲值金</button>
+        <button type="button" class="kind-btn" data-kind="bonus" aria-pressed="${txKind==="bonus"}">🎁 紅利</button>
+      </div>
+      <div class="amt"><label>金額</label><input id="tx_amount" type="number" min="1" step="1" inputmode="numeric" placeholder="0"></div>
+      <div class="amt"><label>日期</label><input id="tx_date" type="date" value="${today()}"></div>
+      <div class="amt n2"><label>說明（選填）</label><input id="tx_note" placeholder="例：拿鐵 x1 / 儲3000送300"></div>
+      <button class="btn btn-topup" data-txn="topup">＋ 加值</button><button class="btn btn-spend" data-txn="spend">－ 扣款</button>
+    </div>
+    <div class="txns"><h3>🧾 交易紀錄</h3>${txns.length?txns.map(t=>{const up=t.type==="topup";const bonusK=(t.kind||"cash")==="bonus";
+      return `<div class="txn-row"><div class="ic ${up?"up":"dn"}">${up?"＋":"－"}</div><div class="tx-main"><div class="tx-note"><span class="kind-tag ${bonusK?"bonus":"cash"}">${bonusK?"紅利":"儲值金"}</span> ${esc(t.note||(up?"加值":"扣款"))}</div><div class="tx-date">${esc(t.at||"")}</div></div><div class="tx-amt ${up?"up":"dn"}">${up?"+":"−"}${nt(t.amount).replace("NT$ ","")}</div></div>`;}).join(""):`<div style="color:var(--ink-soft);font-size:13px;padding:6px 2px">還沒有交易紀錄，先選「儲值金／紅利」再加值或扣款。</div>`}</div>`;
   $("#walletOverlay").hidden=false;
 }
 async function addTxn(type){const w=wallets.find(x=>x.id===openW);if(!w)return;
   const amt=Math.round(Number($("#tx_amount").value));if(!amt||amt<=0){$("#tx_amount").focus();return;}
-  const note=$("#tx_note").value.trim();
-  if(type==="spend"&&amt>walletBalance(w)){if(!confirm("扣款金額大於目前餘額，餘額會變負數。確定要扣？"))return;}
-  const txns=[...(w.txns||[]),{type,amount:amt,note,at:today()}];w.txns=txns;openWallet(openW);renderWallet();
+  const note=$("#tx_note").value.trim();const kind=txKind;const at=$("#tx_date").value||today();
+  const curr=kind==="bonus"?bonusBal(w):cashBal(w);
+  if(type==="spend"&&amt>curr){if(!confirm((kind==="bonus"?"紅利":"儲值金")+"扣款金額大於餘額，會變負數。確定要扣？"))return;}
+  const txns=[...(w.txns||[]),{kind,type,amount:amt,note,at}];w.txns=txns;openWallet(openW);renderWallet();
   try{await sb.from("mango_wallets").update({txns}).eq("id",w.id);}catch(e){console.warn(e);}}
 async function delWallet(){const w=wallets.find(x=>x.id===openW);if(!w)return;if(!confirm(`確定刪除儲值客戶「${w.name}」？餘額與所有紀錄都會消失，無法復原。`))return;
   try{await sb.from("mango_wallets").delete().eq("id",w.id);}catch(e){console.warn(e);}closeAll();loadAll();}
 function openWalletForm(){$("#walletForm").reset();$("#walletErr").hidden=true;$("#walletFormOverlay").hidden=false;setTimeout(()=>$("#w_name").focus(),40);}
 async function submitWallet(e){e.preventDefault();const err=$("#walletErr");const name=$("#w_name").value.trim();if(!name){err.textContent="請填客戶姓名";err.hidden=false;return;}
   const init=Math.round(Number($("#w_init").value))||0;
-  const rec={name,phone:$("#w_phone").value.trim(),note:$("#w_note").value.trim(),txns:init>0?[{type:"topup",amount:init,note:"初始儲值",at:today()}]:[]};
+  const initBonus=Math.round(Number($("#w_bonus").value))||0;
+  const txns=[];if(init>0)txns.push({kind:"cash",type:"topup",amount:init,note:"初始儲值",at:today()});if(initBonus>0)txns.push({kind:"bonus",type:"topup",amount:initBonus,note:"初始紅利",at:today()});
+  const rec={name,phone:$("#w_phone").value.trim(),note:$("#w_note").value.trim(),txns};
   $("#wSaveBtn").disabled=true;
   try{await sb.from("mango_wallets").insert(rec);}catch(ex){$("#wSaveBtn").disabled=false;err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
   $("#wSaveBtn").disabled=false;closeAll();loadAll();}
@@ -617,7 +643,7 @@ $("#wList").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)
 $("#wList").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openWallet(e.target.dataset.wid);}});
 $("#dBody").addEventListener("click",e=>{const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
 $("#dBody").addEventListener("change",e=>{const d=e.target.closest(".pdate");if(d)setPeriodDate(Number(d.dataset.p),d.value);});
-$("#wBody").addEventListener("click",e=>{const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
+$("#wBody").addEventListener("click",e=>{const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
 $("#delBtn").addEventListener("click",delOrder);
 $("#wDelBtn").addEventListener("click",delWallet);
 $("#orderForm").addEventListener("submit",submitForm);
