@@ -80,6 +80,9 @@
   .card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .card .who{display:flex;flex-direction:column;gap:5px;min-width:0}
   .name-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .due-dot{width:11px;height:11px;border-radius:50%;background:var(--overdue);flex:none;box-shadow:0 0 0 3px var(--overdue-bg);animation:duepulse 1.6s ease-in-out infinite}
+  @keyframes duepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.82)}}
+  @media (prefers-reduced-motion:reduce){.due-dot{animation:none}}
   .cust{font-size:16px;font-weight:700}
   .badge{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;letter-spacing:.02em}
   .b-voyage{background:#F3E3CF;color:#8a5a1e}.b-supply6{background:#E6EEDD;color:#4d6a34}.b-supply12{background:#E1EAF0;color:#3a5f78}.b-custom{background:#EFE2D2;color:#7a5230}
@@ -452,11 +455,12 @@ function renderSubs(){
   list.innerHTML=rows.map(o=>{
     const s=stats(o),pct=s.total?Math.round(s.shipped/s.total*100):0;
     const item=o.item&&ITEMS[o.item]?ITEMS[o.item].name:"";
+    const dueNow=!!(s.next&&s.next.ym<=nowYm);
     let pill,pillcls;
     if(s.remain===0){pill="已全部出貨";pillcls="done";}else if(s.overdue){pill="逾期！剩 "+s.remain+" 期";pillcls="due";}else{pill="尚未出貨 "+s.remain+" 期";pillcls="go";}
     const nextTxt=s.next?`<div class="next${s.overdue?" due":""}">下一期：<b>第 ${s.next.n} 期・${ymLabel(s.next.ym)}</b>${s.overdue?" ⚠ 已逾期":s.dueThisMonth?" ・本月":""}</div>`:`<div class="next">🎉 已完成所有配送</div>`;
     return `<article class="card" tabindex="0" role="button" data-id="${o.id}">
-      <div class="who"><div class="name-row"><span class="cust">${esc(o.customer)}</span><span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span>${item?`<span class="meta">${item}</span>`:""}</div>
+      <div class="who"><div class="name-row">${dueNow?`<span class="due-dot" title="有待出貨"></span>`:""}<span class="cust">${esc(o.customer)}</span><span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span>${item?`<span class="meta">${item}</span>`:""}</div>
         <div class="meta">${o.qty>1?`<b style="color:var(--ink)">×${o.qty} 組</b><span class="dot">·</span>`:""}${DELIV[o.deliv]||""}<span class="dot">·</span>${CAD[o.cadence]||""}<span class="dot">·</span>起 ${ymLabel(o.start_ym)}</div>${nextTxt}</div>
       <div class="prog"><div class="frac"><b>${s.shipped}</b> / ${s.total} 期已出</div><div class="bar"><i style="width:${pct}%"></i></div><span class="remain-pill ${pillcls}">${pill}</span></div></article>`;
   }).join("");
