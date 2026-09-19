@@ -182,6 +182,17 @@
   </div>
 </div>
 
+<!-- 未開通 -->
+<div class="auth" id="noAccessOverlay" hidden>
+  <div class="auth-card">
+    <div class="kicker">MANGO COFFEE</div>
+    <h1>尚未開通</h1>
+    <p id="naEmail" style="font-weight:700;color:var(--ink)"></p>
+    <p>這個 Email 還不是後台成員。請聯繫擁有者邀請你加入，再回來登入。</p>
+    <button class="btn btn-ghost" id="naLogout" style="justify-content:center;padding:11px;width:100%">換一個 Email 登入</button>
+  </div>
+</div>
+
 <div class="wrap" id="app" hidden>
   <header class="top">
     <div class="brand"><div><h1>芒果咖啡</h1><div class="sub">訂閱後台 · 定期方案 &amp; 儲值追蹤</div></div></div>
@@ -555,8 +566,10 @@ $("#wSearch").addEventListener("input",e=>{wQuery=e.target.value.trim().toLowerC
 $("#foot").textContent="芒果咖啡訂閱後台 · 資料存於雲端，僅登入者可見";
 
 /* ===== 登入 ===== */
-function showApp(){$("#boot").hidden=true;$("#authOverlay").hidden=true;$("#app").hidden=false;}
-function showLogin(){$("#boot").hidden=true;$("#app").hidden=true;$("#authOverlay").hidden=false;}
+function showApp(){$("#boot").hidden=true;$("#authOverlay").hidden=true;$("#noAccessOverlay").hidden=true;$("#app").hidden=false;}
+function showLogin(){$("#boot").hidden=true;$("#app").hidden=true;$("#noAccessOverlay").hidden=true;$("#authOverlay").hidden=false;}
+function showNoAccess(){$("#boot").hidden=true;$("#app").hidden=true;$("#authOverlay").hidden=true;$("#noAccessOverlay").hidden=false;$("#naEmail").textContent=myEmail||"";}
+document.getElementById("naLogout").addEventListener("click",async()=>{await sb.auth.signOut();myEmail=null;isOwner=false;showLogin();});
 $("#authForm").addEventListener("submit",async e=>{e.preventDefault();const msg=$("#authMsg");const email=$("#authEmail").value.trim();if(!email)return;
   $("#authBtn").disabled=true;msg.className="auth-msg";msg.textContent="寄送中…";
   try{const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.href.split("#")[0]}});
@@ -588,7 +601,7 @@ $("#teamForm").addEventListener("submit",e=>{e.preventDefault();invite($("#tm_em
 $("#teamList").addEventListener("click",e=>{const b=e.target.closest("[data-delmem]");if(b)removeMember(b.dataset.delmem);});
 
 /* ===== 登入 ===== */
-async function onLoggedIn(session){myEmail=(session.user&&session.user.email)||null;showApp();await loadMembers();loadAll();}
+async function onLoggedIn(session){myEmail=(session.user&&session.user.email)||null;await loadMembers();if(!members.length){showNoAccess();return;}showApp();loadAll();}
 $("#logoutBtn").addEventListener("click",async()=>{await sb.auth.signOut();myEmail=null;isOwner=false;showLogin();});
 (async()=>{
   const {data:{session}}=await sb.auth.getSession();
