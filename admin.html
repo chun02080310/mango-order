@@ -227,6 +227,8 @@
     <div class="hdr-actions" id="walletActions" hidden>
       <button class="btn btn-primary" id="addWalletBtn">＋ 新增儲值客戶</button>
     </div>
+    <button class="btn btn-ghost" id="linkBtn" title="客人查詢連結">🔗 客人連結</button>
+    <button class="btn btn-ghost" id="backupBtn" title="匯出備份">⤓ 備份</button>
     <button class="btn btn-ghost" id="teamBtn" title="團隊">👥 團隊</button>
     <button class="logout" id="logoutBtn" title="登出">登出</button>
   </header>
@@ -351,6 +353,19 @@
       </form>
     </div>
     <div id="notOwner" hidden style="color:var(--ink-soft);font-size:13px;margin-top:12px">你是協作夥伴，邀請新成員的權限只有擁有者有。</div>
+  </div>
+</div></div>
+
+<!-- 客人查詢連結 -->
+<div class="overlay" id="linkOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="lkTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="lkTitle">客人查詢連結</h2><div class="hsub">把這個連結傳給客人，他們輸入電話＋姓名就能查自己的訂閱與儲值餘額</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body">
+    <div class="field"><label>連結網址</label><input id="linkUrl" readonly value="" onclick="this.select()"></div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn btn-primary" id="copyLinkBtn" style="flex:1;justify-content:center;padding:12px">複製連結</button>
+      <button class="btn btn-ghost" id="openLinkBtn" style="flex:0 0 auto;padding:12px">開啟看看</button>
+    </div>
+    <div class="hint" style="margin-top:14px">小技巧：也可以把這個連結做成 QR code 貼在店裡或印在包裝上，客人一掃就能查。</div>
   </div>
 </div></div>
 
@@ -595,6 +610,20 @@ document.querySelectorAll("#subsView .chip").forEach(ch=>ch.addEventListener("cl
 $("#search").addEventListener("input",e=>{query=e.target.value.trim().toLowerCase();renderSubs();});
 $("#wSearch").addEventListener("input",e=>{wQuery=e.target.value.trim().toLowerCase();renderWallet();});
 $("#foot").textContent="芒果咖啡訂閱後台 · 資料存於雲端，僅登入者可見";
+
+/* 客人連結 + 備份 */
+const CUSTOMER_URL=location.origin+location.pathname.replace(/admin\.html$/,"");
+$("#linkBtn").addEventListener("click",()=>{$("#linkUrl").value=CUSTOMER_URL;$("#copyLinkBtn").textContent="複製連結";$("#linkOverlay").hidden=false;});
+$("#copyLinkBtn").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(CUSTOMER_URL);}catch(e){try{$("#linkUrl").select();document.execCommand("copy");}catch(_){}}$("#copyLinkBtn").textContent="已複製 ✓";});
+$("#openLinkBtn").addEventListener("click",()=>window.open(CUSTOMER_URL,"_blank","noopener"));
+function exportBackup(){
+  const data={exported_at:new Date().toISOString(),orders,wallets,plans:customPlans,members};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");
+  a.href=url;a.download="芒果訂閱備份_"+today()+".json";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+$("#backupBtn").addEventListener("click",exportBackup);
 
 /* ===== 登入 ===== */
 function hideAll(){["boot","app","authOverlay","noAccessOverlay","recoverOverlay"].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=true;});}
