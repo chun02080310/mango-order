@@ -173,11 +173,13 @@
   <div class="auth-card">
     <div class="kicker">MANGO COFFEE</div>
     <h1>訂閱後台</h1>
-    <p>只有你和團隊能進來。輸入 Email，我們寄一封登入信給你。</p>
+    <p>只有你和團隊能進來。輸入 Email 和密碼登入。</p>
     <form id="authForm">
       <input id="authEmail" type="email" autocomplete="email" placeholder="你的 Email" required>
-      <button class="btn btn-primary" type="submit" id="authBtn" style="justify-content:center;padding:12px">寄送登入連結</button>
+      <input id="authPass" type="password" autocomplete="current-password" placeholder="密碼" required>
+      <button class="btn btn-primary" type="submit" id="authBtn" style="justify-content:center;padding:12px">登入</button>
     </form>
+    <button id="setPassBtn" class="logout" style="margin-top:12px">第一次使用 / 忘記密碼？點這裡設定密碼</button>
     <div class="auth-msg" id="authMsg"></div>
   </div>
 </div>
@@ -190,6 +192,20 @@
     <p id="naEmail" style="font-weight:700;color:var(--ink)"></p>
     <p>這個 Email 還不是後台成員。請聯繫擁有者邀請你加入，再回來登入。</p>
     <button class="btn btn-ghost" id="naLogout" style="justify-content:center;padding:11px;width:100%">換一個 Email 登入</button>
+  </div>
+</div>
+
+<!-- 設定新密碼 -->
+<div class="auth" id="recoverOverlay" hidden>
+  <div class="auth-card">
+    <div class="kicker">MANGO COFFEE</div>
+    <h1>設定新密碼</h1>
+    <p>幫你的後台設定一組密碼，之後就用它登入。</p>
+    <form id="recoverForm">
+      <input id="newPass" type="password" autocomplete="new-password" placeholder="新密碼（至少 6 碼）" required>
+      <button class="btn btn-primary" type="submit" style="justify-content:center;padding:12px">儲存密碼並進入後台</button>
+    </form>
+    <div class="auth-msg" id="recoverMsg"></div>
   </div>
 </div>
 
@@ -566,16 +582,43 @@ $("#wSearch").addEventListener("input",e=>{wQuery=e.target.value.trim().toLowerC
 $("#foot").textContent="芒果咖啡訂閱後台 · 資料存於雲端，僅登入者可見";
 
 /* ===== 登入 ===== */
-function showApp(){$("#boot").hidden=true;$("#authOverlay").hidden=true;$("#noAccessOverlay").hidden=true;$("#app").hidden=false;}
-function showLogin(){$("#boot").hidden=true;$("#app").hidden=true;$("#noAccessOverlay").hidden=true;$("#authOverlay").hidden=false;}
-function showNoAccess(){$("#boot").hidden=true;$("#app").hidden=true;$("#authOverlay").hidden=true;$("#noAccessOverlay").hidden=false;$("#naEmail").textContent=myEmail||"";}
+function hideAll(){["boot","app","authOverlay","noAccessOverlay","recoverOverlay"].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=true;});}
+function showApp(){hideAll();$("#app").hidden=false;}
+function showLogin(){hideAll();$("#authOverlay").hidden=false;}
+function showNoAccess(){hideAll();$("#noAccessOverlay").hidden=false;$("#naEmail").textContent=myEmail||"";}
+function showRecover(){hideAll();$("#recoverOverlay").hidden=false;}
 document.getElementById("naLogout").addEventListener("click",async()=>{await sb.auth.signOut();myEmail=null;isOwner=false;showLogin();});
-$("#authForm").addEventListener("submit",async e=>{e.preventDefault();const msg=$("#authMsg");const email=$("#authEmail").value.trim();if(!email)return;
-  $("#authBtn").disabled=true;msg.className="auth-msg";msg.textContent="寄送中…";
-  try{const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.href.split("#")[0]}});
-    if(error)throw error;msg.className="auth-msg ok";msg.textContent="已寄出！請到 Email 收信，點信裡的登入連結就會進來（同一個瀏覽器開）。";
-  }catch(ex){msg.className="auth-msg err";msg.textContent="寄送失敗："+(ex.message||"請稍後再試");}
+function authErr(m){if(/Invalid login/i.test(m||""))return "帳號或密碼不對（第一次使用請先點下面「設定密碼」）";if(/Email not confirmed/i.test(m||""))return "帳號尚未啟用，請點下面「設定密碼」";return m||"請稍後再試";}
+$("#authForm").addEventListener("submit",async e=>{e.preventDefault();const msg=$("#authMsg");
+  const email=$("#authEmail").value.trim(),pass=$("#authPass").value;if(!email||!pass)return;
+  $("#authBtn").disabled=true;msg.className="auth-msg";msg.textContent="登入中…";
+  try{const {error}=await sb.auth.signInWithPassword({email,password:pass});if(error)throw error;}
+  catch(ex){msg.className="auth-msg err";msg.textContent="登入失敗："+authErr(ex.message);}
   $("#authBtn").disabled=false;});
+$("#setPassBtn").addEventListener("click",async()=>{const msg=$("#authMsg");
+  const email=$("#authEmail").value.trim(),pass=$("#authPass").value;
+  if(!email){msg.className="auth-msg err";msg.textContent="請先填 Email";return;}
+  if(!pass||pass.length<6){msg.className="auth-msg err";msg.textContent="請在密碼欄輸入想設定的密碼（至少 6 碼），再點一次";return;}
+  msg.className="auth-msg";msg.textContent="處理中…";
+  try{
+    const {data,error}=await sb.auth.signUp({email,password:pass});
+    if(error){
+      if(/registered|already|exists/i.test(error.message||"")){
+        const r=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.href.split("#")[0]});
+        if(r.error)throw r.error;
+        msg.className="auth-msg ok";msg.textContent="這個 Email 已有帳號。我們寄了「設定密碼」連結到你信箱，點它就能設定新密碼、然後直接進後台。";
+      } else throw error;
+    } else if(data.session){ /* 新帳號、已登入，交給 onAuthStateChange */ }
+    else { msg.className="auth-msg ok";msg.textContent="帳號已建立，請用剛剛的密碼按「登入」。"; }
+  }catch(ex){msg.className="auth-msg err";msg.textContent="失敗："+(ex.message||"請稍後再試");}
+});
+$("#recoverForm").addEventListener("submit",async e=>{e.preventDefault();const msg=$("#recoverMsg");const p=$("#newPass").value;
+  if(!p||p.length<6){msg.className="auth-msg err";msg.textContent="密碼至少 6 碼";return;}
+  msg.className="auth-msg";msg.textContent="儲存中…";
+  try{const {error}=await sb.auth.updateUser({password:p});if(error)throw error;
+    history.replaceState(null,"",location.pathname);
+    const {data:{session}}=await sb.auth.getSession();if(session)onLoggedIn(session);
+  }catch(ex){msg.className="auth-msg err";msg.textContent="設定失敗："+(ex.message||"請重試");}});
 /* ===== 團隊 ===== */
 let myEmail=null,isOwner=false,members=[];
 async function loadMembers(){
@@ -604,9 +647,15 @@ $("#teamList").addEventListener("click",e=>{const b=e.target.closest("[data-delm
 async function onLoggedIn(session){myEmail=(session.user&&session.user.email)||null;await loadMembers();if(!members.length){showNoAccess();return;}showApp();loadAll();}
 $("#logoutBtn").addEventListener("click",async()=>{await sb.auth.signOut();myEmail=null;isOwner=false;showLogin();});
 (async()=>{
+  const isRecovery=location.hash.includes("type=recovery");
   const {data:{session}}=await sb.auth.getSession();
-  if(session){onLoggedIn(session);}else{showLogin();}
-  sb.auth.onAuthStateChange((_e,sess)=>{if(sess){onLoggedIn(sess);}else{showLogin();}});
+  if(isRecovery){showRecover();}
+  else if(session){onLoggedIn(session);}
+  else{showLogin();}
+  sb.auth.onAuthStateChange((event,sess)=>{
+    if(event==="PASSWORD_RECOVERY"){showRecover();return;}
+    if(sess){onLoggedIn(sess);}else{showLogin();}
+  });
 })();
 </script>
 </body>
