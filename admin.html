@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>芒果咖啡・訂閱後台</title>
+<meta name="theme-color" content="#E68A1E">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<link rel="manifest" href="manifest-admin.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="芒果後台">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif+TC:wght@700;900&display=swap">
@@ -289,7 +297,7 @@
 
 <!-- 方案管理 -->
 <div class="overlay" id="planOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="pTitle">
-  <div class="modal-head"><div class="htxt"><h2 id="pTitle">管理方案</h2><div class="hsub">新增你自己的定期方案，之後會出現在「新增訂單」選項</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-head"><div class="htxt"><h2 id="pTitle">管理方案</h2><div class="hsub">新增／修改你自己的定期方案，之後會出現在「新增訂單」選項</div></div><button class="x" id="planCloseX" aria-label="關閉">✕</button></div>
   <div class="modal-body">
     <div class="section-title">目前的方案</div><div id="planList"></div>
     <hr class="divider"><div class="section-title">＋ 新增一個方案</div>
@@ -373,7 +381,7 @@ function nt(n){return "NT$ "+Number(n||0).toLocaleString();}
 let view="subs";
 let orders=[],customPlans={},wallets=[];
 let filter="all",query="",wQuery="",openId=null,openW=null;
-let form={plan:null,item:null},planCad="monthly";
+let form={plan:null,item:null},planCad="monthly",editingPlanId=null;
 
 function allPlans(){return {...BUILTIN,...customPlans};}
 function getDef(id){return allPlans()[id];}
@@ -507,7 +515,7 @@ async function submitWallet(e){e.preventDefault();const err=$("#walletErr");cons
   $("#wSaveBtn").disabled=false;closeAll();loadAll();}
 
 /* 新增訂單 */
-function renderPlanChoices(){const defs=allPlans();$("#f_plan").innerHTML=Object.keys(defs).map(id=>`<button type="button" data-v="${id}" aria-pressed="${form.plan===id}">${esc(defs[id].short||defs[id].name)}</button>`).join("");}
+function renderPlanChoices(){const defs=allPlans();$("#f_plan").innerHTML=Object.keys(defs).map(id=>`<button type="button" data-v="${id}" aria-pressed="${form.plan===id}">${esc(defs[id].short||defs[id].name)}</button>`).join("")+`<button type="button" data-newplan="1" style="border-style:dashed;color:var(--accent-deep);flex:0 0 auto">＋ 新方案</button>`;}
 function openForm(){form={plan:null,item:null};$("#orderForm").reset();renderPlanChoices();
   $("#f_periods").innerHTML=Array.from({length:36},(_,i)=>`<option value="${i+1}">${i+1} 期</option>`).join("");$("#f_periods").value="12";
   $("#f_start").value=nowYm;document.querySelectorAll('#f_item button').forEach(b=>b.setAttribute("aria-pressed","false"));
@@ -533,14 +541,20 @@ async function submitForm(e){e.preventDefault();const err=$("#formErr");const sh
   $("#saveBtn").disabled=false;closeAll();loadAll();}
 
 /* 方案管理 */
-function openPlanMgr(){renderPlanList();$("#planForm").reset();planCad="monthly";document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="monthly")));$("#planErr").hidden=true;$("#planOverlay").hidden=false;}
+function openPlanMgr(){editingPlanId=null;renderPlanList();$("#planForm").reset();planCad="monthly";document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="monthly")));const sub=document.querySelector('#planForm button[type=submit]');if(sub)sub.textContent="新增方案";$("#planErr").hidden=true;$("#planOverlay").hidden=false;}
+function closePlanMgr(){$("#planOverlay").hidden=true;editingPlanId=null;$("#planForm").reset();planCad="monthly";document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="monthly")));const sub=document.querySelector('#planForm button[type=submit]');if(sub)sub.textContent="新增方案";if(!$("#formOverlay").hidden)renderPlanChoices();}
+function editPlan(id){const d=customPlans[id];if(!d)return;editingPlanId=id;
+  $("#p_name").value=d.name;$("#p_short").value=d.short||"";$("#p_total").value=d.total;$("#p_desc").value=d.descr||"";$("#p_needitem").checked=!!d.needItem;
+  planCad=d.cadence;document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===d.cadence)));
+  const sub=document.querySelector('#planForm button[type=submit]');if(sub)sub.textContent="儲存修改";$("#p_name").focus();}
 function renderPlanList(){const defs=allPlans();$("#planList").innerHTML=Object.keys(defs).map(id=>{const d=defs[id],isB=!!BUILTIN[id];
-  return `<div class="plan-item"><span class="badge ${d.cls||"b-custom"}">${esc(d.short||d.name)}</span><div class="pi-main"><div class="pi-name">${esc(d.name)}</div><div class="pi-sub">${CAD[d.cadence]}・共 ${d.total} 期${d.needItem?"・需選品項":""}</div></div>${isB?`<span class="tag-builtin">內建</span>`:`<button class="del-x" data-delplan="${id}">刪除</button>`}</div>`;}).join("");}
+  return `<div class="plan-item"><span class="badge ${d.cls||"b-custom"}">${esc(d.short||d.name)}</span><div class="pi-main"><div class="pi-name">${esc(d.name)}</div><div class="pi-sub">${CAD[d.cadence]}・共 ${d.total} 期${d.needItem?"・需選品項":""}</div></div>${isB?`<span class="tag-builtin">內建</span>`:`<button class="del-x" data-editplan="${id}" style="color:var(--accent-deep)">編輯</button><button class="del-x" data-delplan="${id}">刪除</button>`}</div>`;}).join("");}
 async function submitPlan(e){e.preventDefault();const err=$("#planErr");const name=$("#p_name").value.trim();if(!name){err.textContent="請填方案名稱";err.hidden=false;return;}
   const total=Math.max(1,Math.min(36,parseInt($("#p_total").value)||12));
   const rec={name,short:$("#p_short").value.trim()||name.slice(0,6),total,cadence:planCad,need_item:$("#p_needitem").checked,descr:$("#p_desc").value.trim()};
-  try{await sb.from("mango_plans").insert(rec);}catch(ex){err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
-  $("#planForm").reset();planCad="monthly";document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="monthly")));await loadAll();renderPlanList();}
+  try{if(editingPlanId){await sb.from("mango_plans").update(rec).eq("id",editingPlanId);}else{await sb.from("mango_plans").insert(rec);}}catch(ex){err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
+  editingPlanId=null;$("#planForm").reset();planCad="monthly";document.querySelectorAll('#p_cad button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="monthly")));
+  const sub=document.querySelector('#planForm button[type=submit]');if(sub)sub.textContent="新增方案";await loadAll();renderPlanList();}
 async function delPlan(id){const d=getDef(id);if(!d)return;if(!confirm(`刪除方案「${d.name}」？（已建立的訂單不受影響）`))return;
   try{await sb.from("mango_plans").delete().eq("id",id);}catch(e){console.warn(e);}await loadAll();renderPlanList();}
 
@@ -565,17 +579,18 @@ $("#delBtn").addEventListener("click",delOrder);
 $("#wDelBtn").addEventListener("click",delWallet);
 $("#orderForm").addEventListener("submit",submitForm);
 $("#walletForm").addEventListener("submit",submitWallet);
-$("#f_plan").addEventListener("click",e=>{const b=e.target.closest("button");if(b)pickPlan(b.dataset.v);});
+$("#f_plan").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.newplan){openPlanMgr();return;}pickPlan(b.dataset.v);});
 $("#f_item").addEventListener("click",e=>{const b=e.target.closest("button");if(b)pickItem(b.dataset.v);});
 $("#f_start").addEventListener("change",updateHint);
 $("#f_qty").addEventListener("input",updateHint);
 $("#f_periods").addEventListener("change",updateHint);
 $("#planForm").addEventListener("submit",submitPlan);
 $("#p_cad").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;planCad=b.dataset.v;document.querySelectorAll('#p_cad button').forEach(x=>x.setAttribute("aria-pressed",String(x===b)));});
-$("#planList").addEventListener("click",e=>{const b=e.target.closest("[data-delplan]");if(b)delPlan(b.dataset.delplan);});
+$("#planList").addEventListener("click",e=>{const del=e.target.closest("[data-delplan]");if(del){delPlan(del.dataset.delplan);return;}const ed=e.target.closest("[data-editplan]");if(ed)editPlan(ed.dataset.editplan);});
+document.getElementById("planCloseX").addEventListener("click",closePlanMgr);
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeAll));
-document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target===o)closeAll();}));
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeAll();});
+document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target!==o)return;if(o.id==="planOverlay")closePlanMgr();else closeAll();}));
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("#planOverlay").hidden)closePlanMgr();else closeAll();});
 document.querySelectorAll("#subsView .chip").forEach(ch=>ch.addEventListener("click",()=>{filter=ch.dataset.f;document.querySelectorAll("#subsView .chip").forEach(c=>c.setAttribute("aria-pressed",String(c===ch)));renderSubs();}));
 $("#search").addEventListener("input",e=>{query=e.target.value.trim().toLowerCase();renderSubs();});
 $("#wSearch").addEventListener("input",e=>{wQuery=e.target.value.trim().toLowerCase();renderWallet();});
