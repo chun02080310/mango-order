@@ -137,6 +137,10 @@
   .kind-btn[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:transparent}
   .kind-tag{font-size:10.5px;font-weight:800;padding:2px 6px;border-radius:5px;background:var(--wallet-bg);color:var(--wallet)}
   .kind-tag.bonus{background:var(--pending-bg);color:var(--accent-deep)}
+  .tx-act{display:flex;gap:4px;flex:none;margin-left:8px}
+  .tx-x{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);width:26px;height:26px;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit;display:grid;place-items:center}
+  .tx-x:hover{background:var(--surface-2)}
+  .tx-x.del:hover{background:var(--overdue-bg);color:var(--overdue);border-color:transparent}
   .txn-row{display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px}
   .txn-row .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:14px;flex:none;font-weight:800}
   .txn-row .ic.up{background:var(--wallet-bg);color:var(--wallet)}.txn-row .ic.dn{background:var(--overdue-bg);color:var(--overdue)}
@@ -375,6 +379,19 @@
   </div>
 </div></div>
 
+<!-- 編輯客戶資料 -->
+<div class="overlay" id="profileOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="pfTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="pfTitle">編輯客戶資料</h2></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body"><form class="order-form" id="profileForm">
+    <div class="field"><label>姓名 <span class="req">*</span></label><input id="pf_name" required></div>
+    <div class="field"><label>電話</label><input id="pf_phone" inputmode="tel"></div>
+    <div class="field" id="pfAddrField"><label>收件資訊（門市 / 地址）</label><input id="pf_addr"></div>
+    <div class="field"><label>備註</label><textarea id="pf_note"></textarea></div>
+    <div class="err" id="profileErr" hidden></div>
+    <button class="btn btn-primary" type="submit" style="justify-content:center;padding:12px">儲存</button>
+  </form></div>
+</div></div>
+
 <!-- 客人查詢連結 -->
 <div class="overlay" id="linkOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="lkTitle">
   <div class="modal-head"><div class="htxt"><h2 id="lkTitle">客人查詢連結</h2><div class="hsub">把這個連結傳給客人，他們輸入電話＋姓名就能查自己的訂閱與儲值餘額</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
@@ -414,7 +431,7 @@ function nt(n){return "NT$ "+Number(n||0).toLocaleString();}
 
 let view="subs";
 let orders=[],customPlans={},wallets=[];
-let filter="all",query="",wQuery="",openId=null,openW=null,txKind="cash";
+let filter="all",query="",wQuery="",openId=null,openW=null,txKind="cash",editingTxIdx=null,profileType="wallet";
 let form={plan:null,item:null},planCad="monthly",editingPlanId=null;
 
 function allPlans(){return {...BUILTIN,...customPlans};}
@@ -506,6 +523,7 @@ function openDetail(id){
       <dt>收件資訊</dt><dd>${esc(o.address)||"—"}</dd><dt>電話</dt><dd>${esc(o.phone)||"—"}</dd>
       ${o.price!=null?`<dt>方案金額</dt><dd>${nt(o.price)}</dd>`:""}${o.note?`<dt>備註</dt><dd>${esc(o.note)}</dd>`:""}
     </dl>
+    <button class="btn btn-ghost" data-editprofile="order" style="padding:8px 14px;font-size:13px;margin-bottom:14px">✎ 編輯客戶資料</button>
     <div class="periods"><h3>📅 各期出貨狀況<span style="margin-left:auto;font-weight:600;color:var(--ink-faint)">標記後可改日期</span></h3>
       ${(o.periods||[]).map(p=>{const overdue=!p.shipped&&p.ym<nowYm;const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?p.shippedAt:"";
         return `<div class="p-row ${p.shipped?"ship":""}"><div class="pn">${p.n}</div>
@@ -525,7 +543,7 @@ async function delOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;if(
 
 /* 儲值詳情 */
 function openWallet(id){
-  const w=wallets.find(x=>x.id===id);if(!w)return;openW=id;
+  const w=wallets.find(x=>x.id===id);if(!w)return;openW=id;editingTxIdx=null;
   const cash=cashBal(w),bonus=bonusBal(w);
   $("#wTitle").textContent=w.name;
   $("#wSub").innerHTML=`${w.phone?esc(w.phone):"—"}${w.note?` <span class="dot" style="opacity:.4">·</span> ${esc(w.note)}`:""}`;
@@ -535,6 +553,7 @@ function openWallet(id){
       <div class="detail-hero w" style="flex:1;margin:0;padding:13px 15px"><div><div class="num ${cash<0?"neg":""}" style="font-size:27px">${nt(cash)}</div><div class="lbl"><b>儲值金餘額</b></div></div></div>
       <div class="detail-hero" style="flex:1;margin:0;padding:13px 15px;background:var(--pending-bg)"><div><div class="num" style="font-size:27px;color:var(--accent-deep)">${nt(bonus)}</div><div class="lbl"><b>紅利餘額</b></div></div></div>
     </div>
+    <button class="btn btn-ghost" data-editprofile="wallet" style="padding:8px 14px;font-size:13px;margin-bottom:14px">✎ 編輯客戶資料</button>
     <div class="txn-form">
       <div style="width:100%;display:flex;gap:8px">
         <button type="button" class="kind-btn" data-kind="cash" aria-pressed="${txKind==="cash"}">💰 儲值金</button>
@@ -544,20 +563,42 @@ function openWallet(id){
       <div class="amt"><label>日期</label><input id="tx_date" type="date" value="${today()}"></div>
       <div class="amt n2"><label>說明（選填）</label><input id="tx_note" placeholder="例：拿鐵 x1 / 儲3000送300"></div>
       <button class="btn btn-topup" data-txn="topup">＋ 加值</button><button class="btn btn-spend" data-txn="spend">－ 扣款</button>
+      <div id="txEditHint" class="hint" style="width:100%;display:none">✏️ 修改中：改好金額／日期／說明後，按「加值」或「扣款」更新這筆。</div>
     </div>
-    <div class="txns"><h3>🧾 交易紀錄</h3>${txns.length?txns.map(t=>{const up=t.type==="topup";const bonusK=(t.kind||"cash")==="bonus";
-      return `<div class="txn-row"><div class="ic ${up?"up":"dn"}">${up?"＋":"－"}</div><div class="tx-main"><div class="tx-note"><span class="kind-tag ${bonusK?"bonus":"cash"}">${bonusK?"紅利":"儲值金"}</span> ${esc(t.note||(up?"加值":"扣款"))}</div><div class="tx-date">${esc(t.at||"")}</div></div><div class="tx-amt ${up?"up":"dn"}">${up?"+":"−"}${nt(t.amount).replace("NT$ ","")}</div></div>`;}).join(""):`<div style="color:var(--ink-soft);font-size:13px;padding:6px 2px">還沒有交易紀錄，先選「儲值金／紅利」再加值或扣款。</div>`}</div>`;
+    <div class="txns"><h3>🧾 交易紀錄</h3>${(w.txns||[]).length?(w.txns||[]).map((t,i)=>({t,i})).reverse().map(({t,i})=>{const up=t.type==="topup";const bonusK=(t.kind||"cash")==="bonus";
+      return `<div class="txn-row"><div class="ic ${up?"up":"dn"}">${up?"＋":"－"}</div><div class="tx-main"><div class="tx-note"><span class="kind-tag ${bonusK?"bonus":"cash"}">${bonusK?"紅利":"儲值金"}</span> ${esc(t.note||(up?"加值":"扣款"))}</div><div class="tx-date">${esc(t.at||"")}</div></div><div class="tx-amt ${up?"up":"dn"}">${up?"+":"−"}${nt(t.amount).replace("NT$ ","")}</div><div class="tx-act"><button class="tx-x" data-edittx="${i}" title="修改">✎</button><button class="tx-x del" data-deltx="${i}" title="刪除">✕</button></div></div>`;}).join(""):`<div style="color:var(--ink-soft);font-size:13px;padding:6px 2px">還沒有交易紀錄，先選「儲值金／紅利」再加值或扣款。</div>`}</div>`;
   $("#walletOverlay").hidden=false;
 }
 async function addTxn(type){const w=wallets.find(x=>x.id===openW);if(!w)return;
   const amt=Math.round(Number($("#tx_amount").value));if(!amt||amt<=0){$("#tx_amount").focus();return;}
   const note=$("#tx_note").value.trim();const kind=txKind;const at=$("#tx_date").value||today();
   const curr=kind==="bonus"?bonusBal(w):cashBal(w);
-  if(type==="spend"&&amt>curr){if(!confirm((kind==="bonus"?"紅利":"儲值金")+"扣款金額大於餘額，會變負數。確定要扣？"))return;}
-  const txns=[...(w.txns||[]),{kind,type,amount:amt,note,at}];w.txns=txns;openWallet(openW);renderWallet();
+  if(type==="spend"&&editingTxIdx==null&&amt>curr){if(!confirm((kind==="bonus"?"紅利":"儲值金")+"扣款金額大於餘額，會變負數。確定要扣？"))return;}
+  const txns=(w.txns||[]).slice();const rec={kind,type,amount:amt,note,at};
+  if(editingTxIdx!=null&&txns[editingTxIdx]){txns[editingTxIdx]=rec;editingTxIdx=null;}else{txns.push(rec);}
+  w.txns=txns;openWallet(openW);renderWallet();
+  try{await sb.from("mango_wallets").update({txns}).eq("id",w.id);}catch(e){console.warn(e);}}
+function editTx(i){const w=wallets.find(x=>x.id===openW);if(!w)return;const t=(w.txns||[])[i];if(!t)return;
+  editingTxIdx=i;txKind=t.kind||"cash";
+  $("#tx_amount").value=t.amount;$("#tx_note").value=t.note||"";$("#tx_date").value=(t.at&&/^\d{4}-\d{2}-\d{2}$/.test(t.at))?t.at:today();
+  document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));
+  const h=$("#txEditHint");if(h)h.style.display="block";$("#tx_amount").focus();}
+async function deleteTx(i){const w=wallets.find(x=>x.id===openW);if(!w)return;const t=(w.txns||[])[i];if(!t)return;
+  if(!confirm("刪除這筆紀錄？（"+((t.kind||"cash")==="bonus"?"紅利":"儲值金")+" "+(t.type==="topup"?"加值":"扣款")+" "+nt(t.amount)+"）"))return;
+  const txns=(w.txns||[]).slice();txns.splice(i,1);w.txns=txns;editingTxIdx=null;openWallet(openW);renderWallet();
   try{await sb.from("mango_wallets").update({txns}).eq("id",w.id);}catch(e){console.warn(e);}}
 async function delWallet(){const w=wallets.find(x=>x.id===openW);if(!w)return;if(!confirm(`確定刪除儲值客戶「${w.name}」？餘額與所有紀錄都會消失，無法復原。`))return;
   try{await sb.from("mango_wallets").delete().eq("id",w.id);}catch(e){console.warn(e);}closeAll();loadAll();}
+function openProfile(type){profileType=type;
+  if(type==="wallet"){const w=wallets.find(x=>x.id===openW);if(!w)return;$("#pf_name").value=w.name||"";$("#pf_phone").value=w.phone||"";$("#pf_note").value=w.note||"";$("#pfAddrField").style.display="none";}
+  else{const o=orders.find(x=>x.id===openId);if(!o)return;$("#pf_name").value=o.customer||"";$("#pf_phone").value=o.phone||"";$("#pf_addr").value=o.address||"";$("#pf_note").value=o.note||"";$("#pfAddrField").style.display="flex";}
+  $("#profileErr").hidden=true;$("#profileOverlay").hidden=false;setTimeout(()=>$("#pf_name").focus(),40);}
+async function submitProfile(e){e.preventDefault();const err=$("#profileErr");const name=$("#pf_name").value.trim();if(!name){err.textContent="請填姓名";err.hidden=false;return;}
+  try{
+    if(profileType==="wallet"){const w=wallets.find(x=>x.id===openW);if(!w)return;await sb.from("mango_wallets").update({name,phone:$("#pf_phone").value.trim(),note:$("#pf_note").value.trim()}).eq("id",w.id);}
+    else{const o=orders.find(x=>x.id===openId);if(!o)return;await sb.from("mango_orders").update({customer:name,phone:$("#pf_phone").value.trim(),address:$("#pf_addr").value.trim(),note:$("#pf_note").value.trim()}).eq("id",o.id);}
+  }catch(ex){err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
+  $("#profileOverlay").hidden=true;await loadAll();}
 function openWalletForm(){$("#walletForm").reset();$("#walletErr").hidden=true;$("#walletFormOverlay").hidden=false;setTimeout(()=>$("#w_name").focus(),40);}
 async function submitWallet(e){e.preventDefault();const err=$("#walletErr");const name=$("#w_name").value.trim();if(!name){err.textContent="請填客戶姓名";err.hidden=false;return;}
   const init=Math.round(Number($("#w_init").value))||0;
@@ -641,13 +682,14 @@ $("#list").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)o
 $("#list").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openDetail(e.target.dataset.id);}});
 $("#wList").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openWallet(c.dataset.wid);});
 $("#wList").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openWallet(e.target.dataset.wid);}});
-$("#dBody").addEventListener("click",e=>{const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
+$("#dBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
 $("#dBody").addEventListener("change",e=>{const d=e.target.closest(".pdate");if(d)setPeriodDate(Number(d.dataset.p),d.value);});
-$("#wBody").addEventListener("click",e=>{const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
+$("#wBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
 $("#delBtn").addEventListener("click",delOrder);
 $("#wDelBtn").addEventListener("click",delWallet);
 $("#orderForm").addEventListener("submit",submitForm);
 $("#walletForm").addEventListener("submit",submitWallet);
+$("#profileForm").addEventListener("submit",submitProfile);
 $("#f_plan").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.newplan){openPlanMgr();return;}pickPlan(b.dataset.v);});
 $("#f_item").addEventListener("click",e=>{const b=e.target.closest("button");if(b)pickItem(b.dataset.v);});
 $("#f_start").addEventListener("change",updateHint);
