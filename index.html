@@ -109,6 +109,7 @@
 
   .again{margin-top:20px;text-align:center}
   .again button{background:none;border:none;color:var(--accent-deep);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline}
+  .cp-toggle{background:none;border:none;color:var(--accent-deep);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0}
 </style>
 </head>
 <body>
@@ -126,13 +127,13 @@
         <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="例：0912-345-678" required>
       </div>
       <div>
-        <label for="name">姓名</label>
-        <input id="name" type="text" autocomplete="name" placeholder="與當初訂購時填的一樣" required>
+        <label for="pass">密碼</label>
+        <input id="pass" type="password" autocomplete="current-password" placeholder="第一次登入＝你的電話號碼" required>
       </div>
-      <button class="btn" type="submit" id="goBtn">查詢我的進度</button>
+      <button class="btn" type="submit" id="goBtn">登入查詢</button>
     </form>
     <div id="msg"></div>
-    <div class="note">查詢資料僅供本人核對；如有疑問請與門市聯繫。</div>
+    <div class="note">第一次登入，密碼就是你的電話號碼；登入後可以自己改密碼。<br>查詢資料僅供本人核對，如有疑問請與門市聯繫。</div>
   </div>
 
   <div class="results" id="results" hidden></div>
@@ -156,31 +157,33 @@ function kBal(txns,kind){return (txns||[]).reduce((s,t)=>{if((t.kind||"cash")!==
 function showMsg(cls,text){$("#msg").className="msg "+cls;$("#msg").textContent=text;}
 function clearMsg(){$("#msg").className="";$("#msg").textContent="";}
 
+let currentPhone="",currentPass="";
 $("#lookupForm").addEventListener("submit",async e=>{
   e.preventDefault();clearMsg();
-  const phone=$("#phone").value.trim(), name=$("#name").value.trim();
-  if(!phone||!name)return;
-  $("#goBtn").disabled=true;$("#goBtn").textContent="查詢中…";
+  const phone=$("#phone").value.trim(), pass=$("#pass").value;
+  if(!phone||!pass)return;
+  $("#goBtn").disabled=true;$("#goBtn").textContent="登入中…";
   try{
-    const {data,error}=await sb.rpc("mango_customer_lookup",{p_phone:phone,p_name:name});
+    const {data,error}=await sb.rpc("mango_customer_login",{p_phone:phone,p_pass:pass});
     if(error)throw error;
-    if(!data||!data.found){
-      showMsg("empty","查不到資料。請確認電話和姓名跟當初訂購時填的完全一樣，或與門市確認。");
+    if(!data||!data.ok){
+      const em=data&&data.error;
+      showMsg("empty", em==="nodata" ? "查不到你的資料，請確認電話號碼，或與門市確認。" : "電話或密碼不對。第一次登入，密碼就是你的電話號碼。");
       $("#results").hidden=true;$("#again").hidden=true;
     }else{
-      renderResults(name,data);
+      currentPhone=phone;currentPass=pass;renderResults(data);
     }
   }catch(ex){
-    showMsg("err","查詢時發生問題，請稍後再試一次。");
-    console.error(ex);
+    showMsg("err","登入時發生問題，請稍後再試一次。");console.error(ex);
   }finally{
-    $("#goBtn").disabled=false;$("#goBtn").textContent="查詢我的進度";
+    $("#goBtn").disabled=false;$("#goBtn").textContent="登入查詢";
   }
 });
 
-function renderResults(name,data){
+function renderResults(data){
   const orders=data.orders||[], wallets=data.wallets||[];
-  let html=`<div class="hello">你好，<b>${esc(name)}</b> ☕</div>`;
+  const name=(wallets[0]&&wallets[0].name)||"";
+  let html=`<div class="hello">你好${name?"，<b>"+esc(name)+"</b>":""} ☕</div>`;
 
   if(orders.length){
     html+=`<div class="block"><div class="block-h"><span class="ic sub">📦</span><h2>定期配送進度</h2></div><div class="block-b">`;
@@ -229,6 +232,16 @@ function renderResults(name,data){
     });
   }
 
+  html+=`<div class="block"><div class="block-b" style="padding:16px 18px">
+    <button type="button" id="showCp" class="cp-toggle">🔑 修改密碼</button>
+    <form id="cpForm" ${data.must_change?"":"hidden"} style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:13px;color:var(--ink-soft);font-weight:600">設定新密碼（至少 4 碼，之後用它登入）</label>
+      <input id="cpNew" type="password" autocomplete="new-password" placeholder="輸入新密碼" style="width:100%;font-family:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:12px 13px">
+      <button class="btn" type="submit" style="font-size:15px;padding:11px">儲存新密碼</button>
+      <div id="cpMsg" style="font-size:13px;font-weight:600"></div>
+    </form>
+    ${data.must_change?`<div style="font-size:12.5px;color:var(--accent-deep);margin-top:8px">👆 你目前用電話當密碼，建議設一組專屬密碼比較安全。</div>`:""}
+  </div></div>`;
   $("#results").innerHTML=html;
   $("#results").hidden=false;
   $("#again").hidden=false;
@@ -239,7 +252,17 @@ function renderResults(name,data){
 
 $("#againBtn").addEventListener("click",()=>{
   $("#results").hidden=true;$("#again").hidden=true;$("#formCard").hidden=false;
-  $("#phone").value="";$("#name").value="";clearMsg();$("#phone").focus();
+  $("#phone").value="";$("#pass").value="";currentPhone="";currentPass="";clearMsg();$("#phone").focus();
+});
+$("#results").addEventListener("click",e=>{const t=e.target.closest("#showCp");if(t){const f=$("#cpForm");f.hidden=!f.hidden;if(!f.hidden)$("#cpNew").focus();}});
+$("#results").addEventListener("submit",async e=>{if(!e.target.closest("#cpForm"))return;e.preventDefault();
+  const np=$("#cpNew").value,m=$("#cpMsg");
+  if(!np||np.length<4){m.style.color="var(--overdue)";m.textContent="密碼至少 4 碼";return;}
+  m.style.color="var(--ink-soft)";m.textContent="儲存中…";
+  try{const {data,error}=await sb.rpc("mango_customer_setpass",{p_phone:currentPhone,p_old:currentPass,p_new:np});
+    if(error)throw error;if(!data||!data.ok){m.style.color="var(--overdue)";m.textContent="修改失敗，請重新登入再試";return;}
+    currentPass=np;$("#cpNew").value="";m.style.color="var(--good)";m.textContent="✓ 密碼已更新！下次請用新密碼登入。";
+  }catch(ex){m.style.color="var(--overdue)";m.textContent="修改失敗，請稍後再試";}
 });
 </script>
 </body>
