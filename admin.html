@@ -141,6 +141,16 @@
   .tx-x{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);width:26px;height:26px;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit;display:grid;place-items:center}
   .tx-x:hover{background:var(--surface-2)}
   .tx-x.del:hover{background:var(--overdue-bg);color:var(--overdue);border-color:transparent}
+  .photos-sec{margin-top:16px}
+  .photos-sec h3{font-size:13px;color:var(--ink-soft);font-weight:700;margin-bottom:9px}
+  .photo-grid{display:flex;flex-wrap:wrap;gap:9px}
+  .photo-grid .ph{position:relative;width:84px;height:84px;border-radius:9px;overflow:hidden;border:1px solid var(--line)}
+  .photo-grid .ph img{width:100%;height:100%;object-fit:cover;cursor:pointer;display:block}
+  .ph-del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;border:none;width:20px;height:20px;border-radius:6px;font-size:11px;cursor:pointer;display:grid;place-items:center}
+  .ph-add{width:84px;height:84px;border:1.5px dashed var(--line);border-radius:9px;display:grid;place-items:center;text-align:center;font-size:12px;font-weight:600;color:var(--accent-deep);cursor:pointer;line-height:1.35}
+  .ph-add:hover{background:var(--surface-2)}
+  #photoView{align-items:center;background:rgba(20,14,8,.85)}
+  #photoView img{max-width:96vw;max-height:92vh;border-radius:10px}
   .txn-row{display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px}
   .txn-row .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:14px;flex:none;font-weight:800}
   .txn-row .ic.up{background:var(--wallet-bg);color:var(--wallet)}.txn-row .ic.dn{background:var(--overdue-bg);color:var(--overdue)}
@@ -379,6 +389,9 @@
   </div>
 </div></div>
 
+<!-- 看大圖 -->
+<div class="overlay" id="photoView" hidden><img id="photoViewImg" src="" alt="照片"></div>
+
 <!-- 編輯客戶資料 -->
 <div class="overlay" id="profileOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="pfTitle">
   <div class="modal-head"><div class="htxt"><h2 id="pfTitle">編輯客戶資料</h2></div><button class="x" data-close aria-label="關閉">✕</button></div>
@@ -524,6 +537,7 @@ function openDetail(id){
       ${o.price!=null?`<dt>方案金額</dt><dd>${nt(o.price)}</dd>`:""}${o.note?`<dt>備註</dt><dd>${esc(o.note)}</dd>`:""}
     </dl>
     <button class="btn btn-ghost" data-editprofile="order" style="padding:8px 14px;font-size:13px;margin-bottom:14px">✎ 編輯客戶資料</button>
+    <div class="photos-sec"><h3>📷 貨單／明細照片</h3><div class="photo-grid">${(o.photos||[]).map((src,i)=>`<div class="ph"><img src="${src}" data-viewph="${i}"><button class="ph-del" data-delph="${i}">✕</button></div>`).join("")}<label class="ph-add">＋ 拍照<br>上傳<input type="file" accept="image/*" data-addph="order" style="display:none"></label></div></div>
     <div class="periods"><h3>📅 各期出貨狀況<span style="margin-left:auto;font-weight:600;color:var(--ink-faint)">標記後可改日期</span></h3>
       ${(o.periods||[]).map(p=>{const overdue=!p.shipped&&p.ym<nowYm;const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?p.shippedAt:"";
         return `<div class="p-row ${p.shipped?"ship":""}"><div class="pn">${p.n}</div>
@@ -554,6 +568,7 @@ function openWallet(id){
       <div class="detail-hero" style="flex:1;margin:0;padding:13px 15px;background:var(--pending-bg)"><div><div class="num" style="font-size:27px;color:var(--accent-deep)">${nt(bonus)}</div><div class="lbl"><b>紅利餘額</b></div></div></div>
     </div>
     <button class="btn btn-ghost" data-editprofile="wallet" style="padding:8px 14px;font-size:13px;margin-bottom:14px">✎ 編輯客戶資料</button>
+    <div class="photos-sec"><h3>📷 明細／單據照片</h3><div class="photo-grid">${(w.photos||[]).map((src,i)=>`<div class="ph"><img src="${src}" data-viewph="${i}"><button class="ph-del" data-delph="${i}">✕</button></div>`).join("")}<label class="ph-add">＋ 拍照<br>上傳<input type="file" accept="image/*" data-addph="wallet" style="display:none"></label></div></div>
     <div class="txn-form">
       <div style="width:100%;display:flex;gap:8px">
         <button type="button" class="kind-btn" data-kind="cash" aria-pressed="${txKind==="cash"}">💰 儲值金</button>
@@ -599,6 +614,22 @@ async function submitProfile(e){e.preventDefault();const err=$("#profileErr");co
     else{const o=orders.find(x=>x.id===openId);if(!o)return;await sb.from("mango_orders").update({customer:name,phone:$("#pf_phone").value.trim(),address:$("#pf_addr").value.trim(),note:$("#pf_note").value.trim()}).eq("id",o.id);}
   }catch(ex){err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
   $("#profileOverlay").hidden=true;await loadAll();}
+function compressImage(file,maxDim=1280,q=0.62){return new Promise((res,rej)=>{const rd=new FileReader();
+  rd.onload=()=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;
+    if(w>h&&w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}else if(h>=w&&h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}
+    const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
+    try{res(c.toDataURL("image/jpeg",q));}catch(e){rej(e);}};img.onerror=rej;img.src=rd.result;};rd.onerror=rej;rd.readAsDataURL(file);});}
+async function addPhoto(scope,file){if(!file)return;let url;try{url=await compressImage(file);}catch(e){alert("圖片讀取失敗，請換一張");return;}
+  if(scope==="order"){const o=orders.find(x=>x.id===openId);if(!o)return;const photos=[...(o.photos||[]),url];o.photos=photos;openDetail(openId);
+    try{await sb.from("mango_orders").update({photos}).eq("id",o.id);}catch(e){console.warn(e);}}
+  else{const w=wallets.find(x=>x.id===openW);if(!w)return;const photos=[...(w.photos||[]),url];w.photos=photos;openWallet(openW);
+    try{await sb.from("mango_wallets").update({photos}).eq("id",w.id);}catch(e){console.warn(e);}}}
+async function delPhoto(scope,i){if(!confirm("刪除這張照片？"))return;
+  if(scope==="order"){const o=orders.find(x=>x.id===openId);if(!o)return;const photos=(o.photos||[]).slice();photos.splice(i,1);o.photos=photos;openDetail(openId);
+    try{await sb.from("mango_orders").update({photos}).eq("id",o.id);}catch(e){console.warn(e);}}
+  else{const w=wallets.find(x=>x.id===openW);if(!w)return;const photos=(w.photos||[]).slice();photos.splice(i,1);w.photos=photos;openWallet(openW);
+    try{await sb.from("mango_wallets").update({photos}).eq("id",w.id);}catch(e){console.warn(e);}}}
+function viewPhoto(src){if(!src)return;$("#photoViewImg").src=src;$("#photoView").hidden=false;}
 function openWalletForm(){$("#walletForm").reset();$("#walletErr").hidden=true;$("#walletFormOverlay").hidden=false;setTimeout(()=>$("#w_name").focus(),40);}
 async function submitWallet(e){e.preventDefault();const err=$("#walletErr");const name=$("#w_name").value.trim();if(!name){err.textContent="請填客戶姓名";err.hidden=false;return;}
   const init=Math.round(Number($("#w_init").value))||0;
@@ -682,9 +713,10 @@ $("#list").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)o
 $("#list").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openDetail(e.target.dataset.id);}});
 $("#wList").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openWallet(c.dataset.wid);});
 $("#wList").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openWallet(e.target.dataset.wid);}});
-$("#dBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
-$("#dBody").addEventListener("change",e=>{const d=e.target.closest(".pdate");if(d)setPeriodDate(Number(d.dataset.p),d.value);});
-$("#wBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
+$("#dBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("order",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const o=orders.find(x=>x.id===openId);if(o)viewPhoto((o.photos||[])[Number(vp.dataset.viewph)]);return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
+$("#dBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";return;}const d=e.target.closest(".pdate");if(d)setPeriodDate(Number(d.dataset.p),d.value);});
+$("#wBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";}});
+$("#wBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("wallet",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const w=wallets.find(x=>x.id===openW);if(w)viewPhoto((w.photos||[])[Number(vp.dataset.viewph)]);return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
 $("#delBtn").addEventListener("click",delOrder);
 $("#wDelBtn").addEventListener("click",delWallet);
 $("#orderForm").addEventListener("submit",submitForm);
@@ -700,8 +732,9 @@ $("#p_cad").addEventListener("click",e=>{const b=e.target.closest("button");if(!
 $("#planList").addEventListener("click",e=>{const t=e.target.closest("[data-toggle]");if(t){const acc=t.closest(".plan-acc");const body=acc.querySelector(".plan-body");const isOpen=acc.classList.toggle("open");body.hidden=!isOpen;return;}const del=e.target.closest("[data-delplan]");if(del){delPlan(del.dataset.delplan);return;}const ed=e.target.closest("[data-editplan]");if(ed)editPlan(ed.dataset.editplan);});
 document.getElementById("planCloseX").addEventListener("click",closePlanMgr);
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeAll));
-document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target!==o)return;if(o.id==="planOverlay")closePlanMgr();else closeAll();}));
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("#planOverlay").hidden)closePlanMgr();else closeAll();});
+document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target!==o)return;if(o.id==="planOverlay")closePlanMgr();else if(o.id==="photoView")o.hidden=true;else closeAll();}));
+document.getElementById("photoViewImg").addEventListener("click",()=>{$("#photoView").hidden=true;});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("#photoView").hidden){$("#photoView").hidden=true;return;}if(!$("#planOverlay").hidden)closePlanMgr();else closeAll();});
 document.querySelectorAll("#subsView .chip").forEach(ch=>ch.addEventListener("click",()=>{filter=ch.dataset.f;document.querySelectorAll("#subsView .chip").forEach(c=>c.setAttribute("aria-pressed",String(c===ch)));renderSubs();}));
 $("#search").addEventListener("input",e=>{query=e.target.value.trim().toLowerCase();renderSubs();});
 $("#wSearch").addEventListener("input",e=>{wQuery=e.target.value.trim().toLowerCase();renderWallet();});

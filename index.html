@@ -88,6 +88,12 @@
   .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),#5fae7a)}
   .sub-meta{font-size:13px;color:var(--ink-soft);display:flex;gap:6px;flex-wrap:wrap}
   .sub-meta b{color:var(--ink)}
+  .pd-list{margin-top:11px;border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+  .pd{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .pd-n{width:22px;height:22px;border-radius:6px;background:var(--surface-2);display:grid;place-items:center;font-weight:700;flex:none;font-variant-numeric:tabular-nums}
+  .pd-m{color:var(--ink)}
+  .pd-s{margin-left:auto;color:var(--pending);font-weight:600}
+  .pd-s.done{color:var(--good)}
 
   .bal-big{font-size:34px;font-weight:800;color:var(--wallet);font-variant-numeric:tabular-nums;line-height:1.1}
   .bal-big.neg{color:var(--overdue)}
@@ -195,6 +201,8 @@ function renderResults(name,data){
           <span class="remain ${remCls}">${remTxt}</span></div>
         <div class="bar"><i style="width:${pct}%"></i></div>
         <div class="sub-meta"><span>已配送 <b>${shipped}</b> / ${total} 期</span><span>·</span><span>${nextTxt}</span></div>
+        <div class="pd-list">${periods.map(p=>{const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?" "+p.shippedAt:"";
+          return `<div class="pd"><span class="pd-n">${p.n}</span><span class="pd-m">${ymLabel(p.ym)}</span><span class="pd-s ${p.shipped?"done":""}">${p.shipped?("✓ 已出貨"+dv):"待出貨"}</span></div>`;}).join("")}</div>
       </div>`;
     }).join("");
     html+=`</div></div>`;
@@ -204,7 +212,7 @@ function renderResults(name,data){
     wallets.forEach(w=>{
       const txns=(w.txns||[]).slice();
       const cash=kBal(txns,"cash"),bonus=kBal(txns,"bonus");
-      const recent=txns.slice(-6).reverse();
+      const recent=txns.slice().reverse();
       html+=`<div class="block"><div class="block-h"><span class="ic wal">💰</span><h2>儲值 / 紅利</h2></div><div class="block-b">
         <div style="display:flex;gap:18px;flex-wrap:wrap">
           <div><div class="bal-big ${cash<0?"neg":""}" style="font-size:30px">${nt(cash)}</div><div class="bal-lbl">儲值金餘額</div></div>
@@ -216,7 +224,6 @@ function renderResults(name,data){
             <span class="t-note">${bk?"🎁 ":""}${esc(t.note||(up?"加值":"消費"))}</span>
             <span class="t-date">${esc(t.at||"")}</span>
             <span class="t-amt ${up?"up":"dn"}">${up?"+":"−"}${nt(t.amount).replace("NT$ ","")}</span></div>`;}).join("")+`</div>`;
-        if(txns.length>6)html+=`<div class="more">只顯示最近 6 筆</div>`;
       }
       html+=`</div></div>`;
     });
