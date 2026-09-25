@@ -109,7 +109,8 @@
 
   .again{margin-top:20px;text-align:center}
   .again button{background:none;border:none;color:var(--accent-deep);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline}
-  .cp-toggle{background:none;border:none;color:var(--accent-deep);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0}
+  .cp-toggle{background:var(--surface);border:1px solid var(--line);color:var(--accent-deep);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:11px 16px;border-radius:11px;width:100%;text-align:center}
+  .cp-toggle:hover{background:var(--surface-2)}
 </style>
 </head>
 <body>
@@ -120,19 +121,27 @@
     <p>輸入電話與姓名，查你的定期配送與儲值餘額</p>
   </div>
 
+  <a id="backAdmin" href="admin.html" hidden style="display:inline-block;margin-bottom:14px;color:var(--accent-deep);font-size:13px;font-weight:700;text-decoration:none">← 回後台</a>
+
   <div class="card" id="formCard">
     <form id="lookupForm">
-      <div>
-        <label for="phone">電話</label>
-        <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="例：0912-345-678" required>
-      </div>
-      <div>
-        <label for="pass">密碼</label>
-        <input id="pass" type="password" autocomplete="current-password" placeholder="第一次登入＝你的電話號碼" required>
-      </div>
+      <div><label for="phone">電話</label>
+        <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="例：0912-345-678" required></div>
+      <div><label for="cname">姓名</label>
+        <input id="cname" type="text" autocomplete="name" placeholder="與訂購時填的姓名一樣" required></div>
+      <div><label for="pass">密碼</label>
+        <input id="pass" type="password" autocomplete="current-password" placeholder="第一次登入＝你的電話號碼" required></div>
       <button class="btn" type="submit" id="goBtn">登入查詢</button>
     </form>
     <div id="msg"></div>
+    <div style="text-align:center;margin-top:12px">
+      <button type="button" id="forgotBtn" class="cp-toggle" style="width:auto;padding:8px 14px;font-size:13px">忘記密碼？請門市協助重設</button>
+    </div>
+    <form id="forgotForm" hidden style="margin-top:12px;display:flex;flex-direction:column;gap:10px;border-top:1px dashed var(--line);padding-top:14px">
+      <div style="font-size:13px;color:var(--ink-soft)">先在上面填「電話」和「姓名」，再按下面送出，我們會通知門市把你的密碼重設回電話號碼。</div>
+      <button class="btn" type="submit" style="font-size:15px;padding:11px">送出重設申請</button>
+      <div id="forgotMsg" style="font-size:13px;font-weight:600"></div>
+    </form>
     <div class="note">第一次登入，密碼就是你的電話號碼；登入後可以自己改密碼。<br>查詢資料僅供本人核對，如有疑問請與門市聯繫。</div>
   </div>
 
@@ -160,15 +169,15 @@ function clearMsg(){$("#msg").className="";$("#msg").textContent="";}
 let currentPhone="",currentPass="";
 $("#lookupForm").addEventListener("submit",async e=>{
   e.preventDefault();clearMsg();
-  const phone=$("#phone").value.trim(), pass=$("#pass").value;
-  if(!phone||!pass)return;
+  const phone=$("#phone").value.trim(), name=$("#cname").value.trim(), pass=$("#pass").value;
+  if(!phone||!name||!pass)return;
   $("#goBtn").disabled=true;$("#goBtn").textContent="登入中…";
   try{
-    const {data,error}=await sb.rpc("mango_customer_login",{p_phone:phone,p_pass:pass});
+    const {data,error}=await sb.rpc("mango_customer_login",{p_phone:phone,p_name:name,p_pass:pass});
     if(error)throw error;
     if(!data||!data.ok){
       const em=data&&data.error;
-      showMsg("empty", em==="nodata" ? "查不到你的資料，請確認電話號碼，或與門市確認。" : "電話或密碼不對。第一次登入，密碼就是你的電話號碼。");
+      showMsg("empty", em==="nodata" ? "查不到你的資料，請確認電話和姓名跟訂購時填的一樣，或洽門市。" : "密碼不對。第一次登入，密碼就是你的電話號碼。");
       $("#results").hidden=true;$("#again").hidden=true;
     }else{
       currentPhone=phone;currentPass=pass;renderResults(data);
@@ -182,7 +191,7 @@ $("#lookupForm").addEventListener("submit",async e=>{
 
 function renderResults(data){
   const orders=data.orders||[], wallets=data.wallets||[];
-  const name=(wallets[0]&&wallets[0].name)||"";
+  const name=data.name||(wallets[0]&&wallets[0].name)||"";
   let html=`<div class="hello">你好${name?"，<b>"+esc(name)+"</b>":""} ☕</div>`;
 
   if(orders.length){
@@ -252,7 +261,7 @@ function renderResults(data){
 
 $("#againBtn").addEventListener("click",()=>{
   $("#results").hidden=true;$("#again").hidden=true;$("#formCard").hidden=false;
-  $("#phone").value="";$("#pass").value="";currentPhone="";currentPass="";clearMsg();$("#phone").focus();
+  $("#phone").value="";$("#cname").value="";$("#pass").value="";currentPhone="";currentPass="";clearMsg();$("#phone").focus();
 });
 $("#results").addEventListener("click",e=>{const t=e.target.closest("#showCp");if(t){const f=$("#cpForm");f.hidden=!f.hidden;if(!f.hidden)$("#cpNew").focus();}});
 $("#results").addEventListener("submit",async e=>{if(!e.target.closest("#cpForm"))return;e.preventDefault();
@@ -264,6 +273,18 @@ $("#results").addEventListener("submit",async e=>{if(!e.target.closest("#cpForm"
     currentPass=np;$("#cpNew").value="";m.style.color="var(--good)";m.textContent="✓ 密碼已更新！下次請用新密碼登入。";
   }catch(ex){m.style.color="var(--overdue)";m.textContent="修改失敗，請稍後再試";}
 });
+$("#forgotBtn").addEventListener("click",()=>{const f=$("#forgotForm");f.hidden=!f.hidden;});
+$("#forgotForm").addEventListener("submit",async e=>{e.preventDefault();const m=$("#forgotMsg");
+  const phone=$("#phone").value.trim(),name=$("#cname").value.trim();
+  if(!phone||!name){m.style.color="var(--overdue)";m.textContent="請先在上面填電話和姓名";return;}
+  m.style.color="var(--ink-soft)";m.textContent="送出中…";
+  try{const {data,error}=await sb.rpc("mango_request_reset",{p_phone:phone,p_name:name});
+    if(error)throw error;
+    if(data&&data.ok){m.style.color="var(--good)";m.textContent="✓ 已送出！請洽門市，重設後密碼會變回你的電話號碼。";}
+    else{m.style.color="var(--overdue)";m.textContent="查不到你的資料，請確認電話和姓名，或直接洽門市。";}
+  }catch(ex){m.style.color="var(--overdue)";m.textContent="送出失敗，請直接洽門市協助。";}
+});
+(function(){try{const p=new URLSearchParams(location.search);if(p.get("admin")==="1"||(document.referrer||"").includes("admin.html"))$("#backAdmin").hidden=false;}catch(e){}})();
 </script>
 </body>
 </html>

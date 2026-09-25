@@ -259,6 +259,7 @@
     </div>
     <button class="btn btn-ghost" id="linkBtn" title="客人查詢連結">🔗 客人連結</button>
     <button class="btn btn-ghost" id="backupBtn" title="匯出備份">⤓ 備份</button>
+    <button class="btn btn-ghost" id="resetReqBtn" title="密碼重設申請">🔔 密碼申請</button>
     <button class="btn btn-ghost" id="teamBtn" title="團隊">👥 團隊</button>
     <button class="logout" id="logoutBtn" title="登出">登出</button>
   </header>
@@ -405,6 +406,12 @@
   </form></div>
 </div></div>
 
+<!-- 密碼重設申請 -->
+<div class="overlay" id="resetReqOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="rrTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="rrTitle">密碼重設申請</h2><div class="hsub">客人在查詢頁按「忘記密碼」送出的申請，點「重設」把他的密碼變回電話號碼</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body" id="resetReqBody"></div>
+</div></div>
+
 <!-- 客人查詢連結 -->
 <div class="overlay" id="linkOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="lkTitle">
   <div class="modal-head"><div class="htxt"><h2 id="lkTitle">客人查詢連結</h2><div class="hsub">把這個連結傳給客人，他們輸入電話＋姓名就能查自己的訂閱與儲值餘額</div></div><button class="x" data-close aria-label="關閉">✕</button></div>
@@ -444,7 +451,7 @@ function nt(n){return "NT$ "+Number(n||0).toLocaleString();}
 
 let view="subs";
 let orders=[],customPlans={},wallets=[];
-let filter="all",query="",wQuery="",openId=null,openW=null,txKind="cash",editingTxIdx=null,profileType="wallet";
+let filter="all",query="",wQuery="",openId=null,openW=null,txKind="cash",editingTxIdx=null,profileType="wallet",resets=[];
 let form={plan:null,item:null},planCad="monthly",editingPlanId=null;
 
 function allPlans(){return {...BUILTIN,...customPlans};}
@@ -536,7 +543,7 @@ function openDetail(id){
       <dt>收件資訊</dt><dd>${esc(o.address)||"—"}</dd><dt>電話</dt><dd>${esc(o.phone)||"—"}</dd>
       ${o.price!=null?`<dt>方案金額</dt><dd>${nt(o.price)}</dd>`:""}${o.note?`<dt>備註</dt><dd>${esc(o.note)}</dd>`:""}
     </dl>
-    <button class="btn btn-ghost" data-editprofile="order" style="padding:8px 14px;font-size:13px;margin-bottom:14px">✎ 編輯客戶資料</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn btn-ghost" data-editprofile="order" style="padding:8px 14px;font-size:13px">✎ 編輯客戶資料</button><button class="btn btn-ghost" data-resetpass="order" style="padding:8px 14px;font-size:13px">🔑 重設客人密碼</button></div>
     <div class="photos-sec"><h3>📷 貨單／明細照片</h3><div class="photo-grid">${(o.photos||[]).map((src,i)=>`<div class="ph"><img src="${src}" data-viewph="${i}"><button class="ph-del" data-delph="${i}">✕</button></div>`).join("")}<label class="ph-add">＋ 拍照<br>上傳<input type="file" accept="image/*" data-addph="order" style="display:none"></label></div></div>
     <div class="periods"><h3>📅 各期出貨狀況<span style="margin-left:auto;font-weight:600;color:var(--ink-faint)">標記後可改日期</span></h3>
       ${(o.periods||[]).map(p=>{const overdue=!p.shipped&&p.ym<nowYm;const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?p.shippedAt:"";
@@ -567,7 +574,7 @@ function openWallet(id){
       <div class="detail-hero w" style="flex:1;margin:0;padding:13px 15px"><div><div class="num ${cash<0?"neg":""}" style="font-size:27px">${nt(cash)}</div><div class="lbl"><b>儲值金餘額</b></div></div></div>
       <div class="detail-hero" style="flex:1;margin:0;padding:13px 15px;background:var(--pending-bg)"><div><div class="num" style="font-size:27px;color:var(--accent-deep)">${nt(bonus)}</div><div class="lbl"><b>紅利餘額</b></div></div></div>
     </div>
-    <button class="btn btn-ghost" data-editprofile="wallet" style="padding:8px 14px;font-size:13px;margin-bottom:14px">✎ 編輯客戶資料</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn btn-ghost" data-editprofile="wallet" style="padding:8px 14px;font-size:13px">✎ 編輯客戶資料</button><button class="btn btn-ghost" data-resetpass="wallet" style="padding:8px 14px;font-size:13px">🔑 重設客人密碼</button></div>
     <div class="photos-sec"><h3>📷 明細／單據照片</h3><div class="photo-grid">${(w.photos||[]).map((src,i)=>`<div class="ph"><img src="${src}" data-viewph="${i}"><button class="ph-del" data-delph="${i}">✕</button></div>`).join("")}<label class="ph-add">＋ 拍照<br>上傳<input type="file" accept="image/*" data-addph="wallet" style="display:none"></label></div></div>
     <div class="txn-form">
       <div style="width:100%;display:flex;gap:8px">
@@ -630,6 +637,15 @@ async function delPhoto(scope,i){if(!confirm("刪除這張照片？"))return;
   else{const w=wallets.find(x=>x.id===openW);if(!w)return;const photos=(w.photos||[]).slice();photos.splice(i,1);w.photos=photos;openWallet(openW);
     try{await sb.from("mango_wallets").update({photos}).eq("id",w.id);}catch(e){console.warn(e);}}}
 function viewPhoto(src){if(!src)return;$("#photoViewImg").src=src;$("#photoView").hidden=false;}
+async function resetCustPass(scope){
+  const rec=scope==="order"?orders.find(x=>x.id===openId):wallets.find(x=>x.id===openW);if(!rec)return;
+  const phone=(rec.phone||"").trim();
+  if(!phone){alert("這位客人沒有電話，無法重設查詢密碼。請先在「編輯客戶資料」補上電話。");return;}
+  if(!confirm("重設這位客人的查詢密碼？\n重設後密碼會變回他的電話號碼（"+phone+"），他可以重新登入查詢頁再自己設密碼。"))return;
+  try{const {data,error}=await sb.rpc("mango_admin_resetpass",{p_phone:phone});if(error)throw error;
+    if(data&&data.ok)alert("已重設 ✓\n客人現在可用電話號碼當密碼登入查詢頁。");else alert("重設失敗，請稍後再試。");
+  }catch(e){alert("重設失敗："+(e.message||"請稍後再試"));}
+}
 function openWalletForm(){$("#walletForm").reset();$("#walletErr").hidden=true;$("#walletFormOverlay").hidden=false;setTimeout(()=>$("#w_name").focus(),40);}
 async function submitWallet(e){e.preventDefault();const err=$("#walletErr");const name=$("#w_name").value.trim();if(!name){err.textContent="請填客戶姓名";err.hidden=false;return;}
   const init=Math.round(Number($("#w_init").value))||0;
@@ -713,10 +729,10 @@ $("#list").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)o
 $("#list").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openDetail(e.target.dataset.id);}});
 $("#wList").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openWallet(c.dataset.wid);});
 $("#wList").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openWallet(e.target.dataset.wid);}});
-$("#dBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("order",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const o=orders.find(x=>x.id===openId);if(o)viewPhoto((o.photos||[])[Number(vp.dataset.viewph)]);return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
+$("#dBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("order");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("order",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const o=orders.find(x=>x.id===openId);if(o)viewPhoto((o.photos||[])[Number(vp.dataset.viewph)]);return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
 $("#dBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";return;}const d=e.target.closest(".pdate");if(d)setPeriodDate(Number(d.dataset.p),d.value);});
 $("#wBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";}});
-$("#wBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("wallet",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const w=wallets.find(x=>x.id===openW);if(w)viewPhoto((w.photos||[])[Number(vp.dataset.viewph)]);return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
+$("#wBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("wallet");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("wallet",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const w=wallets.find(x=>x.id===openW);if(w)viewPhoto((w.photos||[])[Number(vp.dataset.viewph)]);return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
 $("#delBtn").addEventListener("click",delOrder);
 $("#wDelBtn").addEventListener("click",delWallet);
 $("#orderForm").addEventListener("submit",submitForm);
@@ -744,7 +760,19 @@ $("#foot").textContent="芒果咖啡訂閱後台 · 資料存於雲端，僅登�
 const CUSTOMER_URL=location.origin+location.pathname.replace(/admin\.html$/,"");
 $("#linkBtn").addEventListener("click",()=>{$("#linkUrl").value=CUSTOMER_URL;$("#copyLinkBtn").textContent="複製連結";$("#linkOverlay").hidden=false;});
 $("#copyLinkBtn").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(CUSTOMER_URL);}catch(e){try{$("#linkUrl").select();document.execCommand("copy");}catch(_){}}$("#copyLinkBtn").textContent="已複製 ✓";});
-$("#openLinkBtn").addEventListener("click",()=>window.open(CUSTOMER_URL,"_blank","noopener"));
+$("#openLinkBtn").addEventListener("click",()=>window.open(CUSTOMER_URL+"?admin=1","_blank"));
+async function loadResets(){try{const {data}=await sb.rpc("mango_admin_reset_list");resets=(data&&data.ok&&data.requests)||[];}catch(e){resets=[];}updateResetBadge();}
+function updateResetBadge(){const b=$("#resetReqBtn");if(!b)return;b.textContent=resets.length?("🔔 密碼申請 ("+resets.length+")"):"🔔 密碼申請";b.style.borderColor=resets.length?"var(--overdue)":"";b.style.color=resets.length?"var(--overdue)":"";}
+function renderResetReq(){const box=$("#resetReqBody");
+  if(!resets.length){box.innerHTML=`<div class="empty" style="padding:30px 10px"><div class="big">✅</div><h2>目前沒有待處理的申請</h2><p>客人按「忘記密碼」送出後會出現在這裡。</p></div>`;return;}
+  box.innerHTML=resets.map(r=>`<div class="plan-item"><div class="pi-main"><div class="pi-name">${esc(r.name)}</div><div class="pi-sub">${esc(r.phone)}${r.created_at?"・"+String(r.created_at).slice(0,10):""}</div></div><button class="btn btn-primary" data-resetdo="${r.id}" data-resetph="${esc(r.phone)}" style="padding:8px 14px;font-size:13px">重設密碼</button></div>`).join("");}
+function openResetReq(){renderResetReq();$("#resetReqOverlay").hidden=false;loadResets().then(renderResetReq);}
+async function resetReqDo(id,phone){if(!confirm("重設「"+phone+"」的密碼？會變回電話號碼，客人可重新登入。"))return;
+  try{const {data,error}=await sb.rpc("mango_admin_reset_do",{p_id:id,p_phone:phone});if(error)throw error;
+    if(data&&data.ok){await loadResets();renderResetReq();}else alert("重設失敗，請稍後再試。");
+  }catch(e){alert("重設失敗："+(e.message||"請稍後再試"));}}
+$("#resetReqBtn").addEventListener("click",openResetReq);
+$("#resetReqBody").addEventListener("click",e=>{const b=e.target.closest("[data-resetdo]");if(b)resetReqDo(b.dataset.resetdo,b.dataset.resetph);});
 function exportBackup(){
   const data={exported_at:new Date().toISOString(),orders,wallets,plans:customPlans,members};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
@@ -817,7 +845,7 @@ $("#teamForm").addEventListener("submit",e=>{e.preventDefault();invite($("#tm_em
 $("#teamList").addEventListener("click",e=>{const b=e.target.closest("[data-delmem]");if(b)removeMember(b.dataset.delmem);});
 
 /* ===== 登入 ===== */
-async function onLoggedIn(session){myEmail=(session.user&&session.user.email)||null;await loadMembers();if(!members.length){showNoAccess();return;}showApp();loadAll();}
+async function onLoggedIn(session){myEmail=(session.user&&session.user.email)||null;await loadMembers();if(!members.length){showNoAccess();return;}showApp();loadAll();loadResets();}
 $("#logoutBtn").addEventListener("click",async()=>{await sb.auth.signOut();myEmail=null;isOwner=false;showLogin();});
 (async()=>{
   const isRecovery=location.hash.includes("type=recovery");
