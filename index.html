@@ -250,7 +250,7 @@ function renderResults(data){
       <button class="btn" type="submit" style="font-size:15px;padding:11px">儲存新密碼</button>
       <div id="cpMsg" style="font-size:13px;font-weight:600"></div>
     </form>
-    ${data.must_change?`<div style="font-size:12.5px;color:var(--accent-deep);margin-top:8px">👆 你目前用電話當密碼，建議設一組專屬密碼比較安全。</div>`:""}
+    ${data.must_change?`<div id="mcHint" style="font-size:12.5px;color:var(--accent-deep);margin-top:8px">👆 你目前用電話當密碼，建議設一組專屬密碼比較安全。</div>`:""}
   </div></div>`;
   $("#results").innerHTML=html;
   $("#results").hidden=false;
@@ -272,6 +272,7 @@ $("#results").addEventListener("submit",async e=>{if(!e.target.closest("#cpForm"
   try{const {data,error}=await sb.rpc("mango_customer_setpass",{p_phone:currentPhone,p_old:currentPass,p_new:np});
     if(error)throw error;if(!data||!data.ok){m.style.color="var(--overdue)";m.textContent="修改失敗，請重新登入再試";return;}
     currentPass=np;$("#cpNew").value="";m.style.color="var(--good)";m.textContent="✓ 密碼已更新！下次請用新密碼登入。";
+    const h=document.getElementById("mcHint");if(h)h.remove();
   }catch(ex){m.style.color="var(--overdue)";m.textContent="修改失敗，請稍後再試";}
 });
 $("#forgotBtn").addEventListener("click",()=>{const f=$("#forgotForm");f.hidden=!f.hidden;});
