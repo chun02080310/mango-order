@@ -126,9 +126,11 @@
 
   <div class="card" id="formCard">
     <form id="quickForm" hidden>
-      <div class="hello" style="margin:-2px 0 14px">歡迎回來，<b id="qName"></b> ☕</div>
+      <div class="hello" style="margin:-2px 0 12px">歡迎回來 ☕</div>
+      <div><label for="qname">姓名</label>
+        <input id="qname" type="text" autocomplete="name" placeholder="與訂購時填的姓名一樣" required></div>
       <div><label for="qpass">密碼</label>
-        <input id="qpass" type="password" autocomplete="current-password" placeholder="輸入你的密碼（第一次是電話號碼）" required></div>
+        <input id="qpass" type="password" autocomplete="current-password" placeholder="輸入你的密碼" required></div>
       <button class="btn" type="submit" id="qBtn">登入</button>
     </form>
     <form id="lookupForm" hidden>
@@ -178,7 +180,7 @@ let currentPhone="",currentPass="";
 function getRem(){try{const s=JSON.parse(localStorage.getItem("mango_cust")||"null");return (s&&s.phone)?s:null;}catch(e){return null;}}
 function saveRem(phone,name){try{localStorage.setItem("mango_cust",JSON.stringify({phone,name}));}catch(e){}}
 function clearRem(){try{localStorage.removeItem("mango_cust");}catch(e){}}
-function showQuick(r){$("#quickForm").hidden=false;$("#lookupForm").hidden=true;$("#switchAcct").hidden=false;$("#qName").textContent=r.name||"";}
+function showQuick(r){$("#quickForm").hidden=false;$("#lookupForm").hidden=true;$("#switchAcct").hidden=false;$("#qname").value=r.name||"";}
 function showFull(){$("#quickForm").hidden=true;$("#lookupForm").hidden=false;$("#switchAcct").hidden=true;}
 async function doLogin(phone,name,pass){
   clearMsg();
@@ -197,8 +199,8 @@ async function doLogin(phone,name,pass){
   finally{ btn.disabled=false;btn.textContent=t; }
 }
 $("#lookupForm").addEventListener("submit",e=>{e.preventDefault();doLogin($("#phone").value.trim(),$("#cname").value.trim(),$("#pass").value);});
-$("#quickForm").addEventListener("submit",e=>{e.preventDefault();const r=getRem();if(!r){showFull();return;}doLogin(r.phone,r.name,$("#qpass").value);});
-$("#switchBtn").addEventListener("click",()=>{clearRem();$("#qpass").value="";showFull();clearMsg();setTimeout(()=>$("#phone").focus(),30);});
+$("#quickForm").addEventListener("submit",e=>{e.preventDefault();const r=getRem();if(!r){showFull();return;}doLogin(r.phone,$("#qname").value.trim(),$("#qpass").value);});
+$("#switchBtn").addEventListener("click",()=>{clearRem();$("#qpass").value="";$("#qname").value="";showFull();clearMsg();setTimeout(()=>$("#phone").focus(),30);});
 (function(){const r=getRem();if(r){showQuick(r);setTimeout(()=>$("#qpass").focus(),40);}else{showFull();}})();
 
 function renderResults(data){
