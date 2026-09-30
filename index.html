@@ -126,8 +126,7 @@
 
   <div class="card" id="formCard">
     <form id="quickForm" hidden>
-      <div class="hello" style="margin:-2px 0 2px">歡迎回來，<b id="qName"></b> ☕</div>
-      <div id="qPhone" style="font-size:13px;color:var(--ink-soft);margin-bottom:14px"></div>
+      <div class="hello" style="margin:-2px 0 14px">歡迎回來，<b id="qName"></b> ☕</div>
       <div><label for="qpass">密碼</label>
         <input id="qpass" type="password" autocomplete="current-password" placeholder="輸入你的密碼（第一次是電話號碼）" required></div>
       <button class="btn" type="submit" id="qBtn">登入</button>
@@ -179,7 +178,7 @@ let currentPhone="",currentPass="";
 function getRem(){try{const s=JSON.parse(localStorage.getItem("mango_cust")||"null");return (s&&s.phone)?s:null;}catch(e){return null;}}
 function saveRem(phone,name){try{localStorage.setItem("mango_cust",JSON.stringify({phone,name}));}catch(e){}}
 function clearRem(){try{localStorage.removeItem("mango_cust");}catch(e){}}
-function showQuick(r){$("#quickForm").hidden=false;$("#lookupForm").hidden=true;$("#switchAcct").hidden=false;$("#qName").textContent=r.name||"";$("#qPhone").textContent=r.phone||"";}
+function showQuick(r){$("#quickForm").hidden=false;$("#lookupForm").hidden=true;$("#switchAcct").hidden=false;$("#qName").textContent=r.name||"";}
 function showFull(){$("#quickForm").hidden=true;$("#lookupForm").hidden=false;$("#switchAcct").hidden=true;}
 async function doLogin(phone,name,pass){
   clearMsg();
