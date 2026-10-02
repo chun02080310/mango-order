@@ -119,7 +119,7 @@
   <div class="head">
     <div class="kicker">MANGO COFFEE</div>
     <h1>訂閱進度查詢</h1>
-    <p>輸入電話與姓名，查你的定期配送與儲值餘額</p>
+    <p>輸入姓名與密碼，查你的定期配送與儲值餘額</p>
   </div>
 
   <a id="backAdmin" href="admin.html" hidden style="display:inline-block;margin-bottom:14px;color:var(--accent-deep);font-size:13px;font-weight:700;text-decoration:none">← 回後台</a>
@@ -134,8 +134,6 @@
       <button class="btn" type="submit" id="qBtn">登入</button>
     </form>
     <form id="lookupForm" hidden>
-      <div><label for="phone">電話</label>
-        <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="例：0912-345-678" required></div>
       <div><label for="cname">姓名</label>
         <input id="cname" type="text" autocomplete="name" placeholder="與訂購時填的姓名一樣" required></div>
       <div><label for="pass">密碼</label>
@@ -147,11 +145,11 @@
       <button type="button" id="forgotBtn" class="cp-toggle" style="width:auto;padding:8px 14px;font-size:13px">忘記密碼？請門市協助重設</button>
     </div>
     <form id="forgotForm" hidden style="margin-top:12px;display:flex;flex-direction:column;gap:10px;border-top:1px dashed var(--line);padding-top:14px">
-      <div style="font-size:13px;color:var(--ink-soft)">按下面送出，我們會通知門市協助把你的密碼重設回電話號碼（若你是第一次、還沒被記住，請先在上面填電話和姓名）。</div>
+      <div style="font-size:13px;color:var(--ink-soft)">按下面送出，我們會通知門市協助把你的密碼重設回電話號碼（請先在上面填姓名）。</div>
       <button class="btn" type="submit" style="font-size:15px;padding:11px">送出重設申請</button>
       <div id="forgotMsg" style="font-size:13px;font-weight:600"></div>
     </form>
-    <div id="switchAcct" hidden style="text-align:center;margin-top:10px"><button type="button" id="switchBtn" class="cp-toggle" style="width:auto;padding:8px 14px;font-size:13px">換一個帳號（用其他電話）</button></div>
+    <div id="switchAcct" hidden style="text-align:center;margin-top:10px"><button type="button" id="switchBtn" class="cp-toggle" style="width:auto;padding:8px 14px;font-size:13px">換別人查詢（重新輸入姓名）</button></div>
     <div class="note">第一次登入，密碼就是你的電話號碼；登入後可以自己改密碼。<br>登入後這台裝置會記住你，下次打開只要輸入密碼。查詢資料僅供本人核對。</div>
   </div>
 
@@ -177,30 +175,30 @@ function showMsg(cls,text){$("#msg").className="msg "+cls;$("#msg").textContent=
 function clearMsg(){$("#msg").className="";$("#msg").textContent="";}
 
 let currentPhone="",currentPass="";
-function getRem(){try{const s=JSON.parse(localStorage.getItem("mango_cust")||"null");return (s&&s.phone)?s:null;}catch(e){return null;}}
-function saveRem(phone,name){try{localStorage.setItem("mango_cust",JSON.stringify({phone,name}));}catch(e){}}
+function getRem(){try{const s=JSON.parse(localStorage.getItem("mango_cust")||"null");return (s&&s.name)?s:null;}catch(e){return null;}}
+function saveRem(name){try{localStorage.setItem("mango_cust",JSON.stringify({name}));}catch(e){}}
 function clearRem(){try{localStorage.removeItem("mango_cust");}catch(e){}}
 function showQuick(r){$("#quickForm").hidden=false;$("#lookupForm").hidden=true;$("#switchAcct").hidden=false;$("#qname").value=r.name||"";}
 function showFull(){$("#quickForm").hidden=true;$("#lookupForm").hidden=false;$("#switchAcct").hidden=true;}
-async function doLogin(phone,name,pass){
+async function doLogin(name,pass){
   clearMsg();
-  if(!phone||!name||!pass){showMsg("empty","請輸入密碼");return;}
+  if(!name||!pass){showMsg("empty","請輸入姓名和密碼");return;}
   const quick=!$("#quickForm").hidden;const btn=quick?$("#qBtn"):$("#goBtn");const t=btn.textContent;
   btn.disabled=true;btn.textContent="登入中…";
   try{
-    const {data,error}=await sb.rpc("mango_customer_login",{p_phone:phone,p_name:name,p_pass:pass});
+    const {data,error}=await sb.rpc("mango_customer_login",{p_name:name,p_pass:pass});
     if(error)throw error;
     if(!data||!data.ok){
       const em=data&&data.error;
-      showMsg("empty", em==="nodata" ? "查不到你的資料，請確認電話和姓名跟訂購時填的一樣，或洽門市。" : "密碼不對。第一次登入，密碼就是你的電話號碼。");
+      showMsg("empty", em==="nodata" ? "查不到你的資料，請確認姓名跟訂購時填的一樣，或洽門市。" : "密碼不對。第一次登入，密碼就是你的電話號碼。");
       $("#results").hidden=true;$("#again").hidden=true;
-    }else{ currentPhone=phone;currentPass=pass;saveRem(phone,name);renderResults(data); }
+    }else{ currentPhone=data.phone||"";currentPass=pass;saveRem(data.name||name);renderResults(data); }
   }catch(ex){ showMsg("err","登入時發生問題，請稍後再試一次。");console.error(ex); }
   finally{ btn.disabled=false;btn.textContent=t; }
 }
-$("#lookupForm").addEventListener("submit",e=>{e.preventDefault();doLogin($("#phone").value.trim(),$("#cname").value.trim(),$("#pass").value);});
-$("#quickForm").addEventListener("submit",e=>{e.preventDefault();const r=getRem();if(!r){showFull();return;}doLogin(r.phone,$("#qname").value.trim(),$("#qpass").value);});
-$("#switchBtn").addEventListener("click",()=>{clearRem();$("#qpass").value="";$("#qname").value="";showFull();clearMsg();setTimeout(()=>$("#phone").focus(),30);});
+$("#lookupForm").addEventListener("submit",e=>{e.preventDefault();doLogin($("#cname").value.trim(),$("#pass").value);});
+$("#quickForm").addEventListener("submit",e=>{e.preventDefault();doLogin($("#qname").value.trim(),$("#qpass").value);});
+$("#switchBtn").addEventListener("click",()=>{clearRem();$("#qpass").value="";$("#qname").value="";showFull();clearMsg();setTimeout(()=>$("#cname").focus(),30);});
 (function(){const r=getRem();if(r){showQuick(r);setTimeout(()=>$("#qpass").focus(),40);}else{showFull();}})();
 
 function renderResults(data){
@@ -276,7 +274,7 @@ function renderResults(data){
 $("#againBtn").addEventListener("click",()=>{
   clearRem();
   $("#results").hidden=true;$("#again").hidden=true;$("#formCard").hidden=false;showFull();
-  $("#phone").value="";$("#cname").value="";$("#pass").value="";$("#qpass").value="";currentPhone="";currentPass="";clearMsg();setTimeout(()=>$("#phone").focus(),30);
+  $("#cname").value="";$("#pass").value="";$("#qpass").value="";$("#qname").value="";currentPhone="";currentPass="";clearMsg();setTimeout(()=>$("#cname").focus(),30);
 });
 $("#results").addEventListener("click",e=>{const t=e.target.closest("#showCp");if(t){const f=$("#cpForm");f.hidden=!f.hidden;if(!f.hidden)$("#cpNew").focus();}});
 $("#results").addEventListener("submit",async e=>{if(!e.target.closest("#cpForm"))return;e.preventDefault();
@@ -292,13 +290,13 @@ $("#results").addEventListener("submit",async e=>{if(!e.target.closest("#cpForm"
 $("#forgotBtn").addEventListener("click",()=>{const f=$("#forgotForm");f.hidden=!f.hidden;});
 $("#forgotForm").addEventListener("submit",async e=>{e.preventDefault();const m=$("#forgotMsg");
   const r=getRem();
-  const phone=r?r.phone:$("#phone").value.trim(), name=r?(r.name||""):$("#cname").value.trim();
-  if(!phone||!name){m.style.color="var(--overdue)";m.textContent="請先在上面填電話和姓名";return;}
+  const name=r?(r.name||""):($("#cname").value.trim()||$("#qname").value.trim());
+  if(!name){m.style.color="var(--overdue)";m.textContent="請先在上面填姓名";return;}
   m.style.color="var(--ink-soft)";m.textContent="送出中…";
-  try{const {data,error}=await sb.rpc("mango_request_reset",{p_phone:phone,p_name:name});
+  try{const {data,error}=await sb.rpc("mango_request_reset",{p_name:name});
     if(error)throw error;
     if(data&&data.ok){m.style.color="var(--good)";m.textContent="✓ 已送出！請洽門市，重設後密碼會變回你的電話號碼。";}
-    else{m.style.color="var(--overdue)";m.textContent="查不到你的資料，請確認電話和姓名，或直接洽門市。";}
+    else{m.style.color="var(--overdue)";m.textContent="查不到你的資料，請確認姓名，或直接洽門市。";}
   }catch(ex){m.style.color="var(--overdue)";m.textContent="送出失敗，請直接洽門市協助。";}
 });
 (function(){try{const p=new URLSearchParams(location.search);if(p.get("admin")==="1"||(document.referrer||"").includes("admin.html"))$("#backAdmin").hidden=false;}catch(e){}})();
