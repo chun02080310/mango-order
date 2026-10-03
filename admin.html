@@ -544,7 +544,7 @@ function openDetail(id){
       <dt>收件資訊</dt><dd>${esc(o.address)||"—"}</dd><dt>電話</dt><dd>${esc(o.phone)||"—"}</dd>
       ${o.price!=null?`<dt>方案金額</dt><dd>${nt(o.price)}</dd>`:""}${o.note?`<dt>備註</dt><dd>${esc(o.note)}</dd>`:""}
     </dl>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn btn-ghost" data-editprofile="order" style="padding:8px 14px;font-size:13px">✎ 編輯客戶資料</button><button class="btn btn-ghost" data-resetpass="order" style="padding:8px 14px;font-size:13px">🔑 重設客人密碼</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn btn-primary" data-renew="1" style="padding:8px 14px;font-size:13px">➕ 續訂（用同資料再開一張）</button><button class="btn btn-ghost" data-addwalletfor="1" style="padding:8px 14px;font-size:13px">💰 幫這位客人加儲值</button><button class="btn btn-ghost" data-editprofile="order" style="padding:8px 14px;font-size:13px">✎ 編輯客戶資料</button><button class="btn btn-ghost" data-resetpass="order" style="padding:8px 14px;font-size:13px">🔑 重設客人密碼</button></div>
     <div class="photos-sec"><h3>📷 貨單／明細照片</h3><div class="photo-grid">${(o.photos||[]).map((src,i)=>`<div class="ph"><img src="${src}" data-viewph="${i}"><button class="ph-del" data-delph="${i}">✕</button></div>`).join("")}<label class="ph-add">＋ 拍照<br>上傳<input type="file" accept="image/*" data-addph="order" style="display:none"></label></div></div>
     <div class="periods"><h3>📅 各期出貨狀況<span style="margin-left:auto;font-weight:600;color:var(--ink-faint)">標記後可改日期</span></h3>
       ${(o.periods||[]).map(p=>{const overdue=!p.shipped&&p.ym<nowYm;const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?p.shippedAt:"";
@@ -563,6 +563,20 @@ async function setPeriodDate(n,val){const o=orders.find(x=>x.id===openId);if(!o)
 async function delOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;if(!confirm(`確定刪除「${o.customer}」的訂單？此動作無法復原。`))return;
   try{await sb.from("mango_orders").delete().eq("id",o.id);}catch(e){console.warn(e);}closeAll();loadAll();}
 
+/* 續訂 / 跨項目新增：都帶同一組姓名＋電話，客人登入才綁得在一起同步看到 */
+function renewFromOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;
+  const P=o.periods||[];const step=o.cadence==="bimonthly"?2:1;
+  const lastYm=P.length?P.reduce((a,p)=>p.ym>a?p.ym:a,P[0].ym):nowYm;
+  const nextStart=P.length?addMonths(lastYm,step):nowYm;
+  closeAll();openForm();
+  $("#f_customer").value=o.customer||"";$("#f_phone").value=o.phone||"";
+  if(o.address)$("#f_address").value=o.address;if(o.deliv)$("#f_deliv").value=o.deliv;
+  if(o.plan&&getDef(o.plan)){pickPlan(o.plan);if(o.item)pickItem(o.item);}
+  if(o.qty)$("#f_qty").value=o.qty;if(P.length)$("#f_periods").value=String(P.length);
+  $("#f_start").value=nextStart;updateHint();}
+function addOrderForCustomer(name,phone){closeAll();openForm();$("#f_customer").value=name||"";$("#f_phone").value=phone||"";updateHint();}
+function addWalletForCustomer(name,phone){closeAll();openWalletForm();$("#w_name").value=name||"";$("#w_phone").value=phone||"";}
+
 /* 儲值詳情 */
 function openWallet(id){
   const w=wallets.find(x=>x.id===id);if(!w)return;openW=id;editingTxIdx=null;
@@ -575,7 +589,7 @@ function openWallet(id){
       <div class="detail-hero w" style="flex:1;margin:0;padding:13px 15px"><div><div class="num ${cash<0?"neg":""}" style="font-size:27px">${nt(cash)}</div><div class="lbl"><b>儲值金餘額</b></div></div></div>
       <div class="detail-hero" style="flex:1;margin:0;padding:13px 15px;background:var(--pending-bg)"><div><div class="num" style="font-size:27px;color:var(--accent-deep)">${nt(bonus)}</div><div class="lbl"><b>紅利餘額</b></div></div></div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn btn-ghost" data-editprofile="wallet" style="padding:8px 14px;font-size:13px">✎ 編輯客戶資料</button><button class="btn btn-ghost" data-resetpass="wallet" style="padding:8px 14px;font-size:13px">🔑 重設客人密碼</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn btn-primary" data-addorderfor="1" style="padding:8px 14px;font-size:13px">➕ 幫這位客人加訂閱</button><button class="btn btn-ghost" data-editprofile="wallet" style="padding:8px 14px;font-size:13px">✎ 編輯客戶資料</button><button class="btn btn-ghost" data-resetpass="wallet" style="padding:8px 14px;font-size:13px">🔑 重設客人密碼</button></div>
     <div class="photos-sec"><h3>📷 明細／單據照片</h3><div class="photo-grid">${(w.photos||[]).map((src,i)=>`<div class="ph"><img src="${src}" data-viewph="${i}"><button class="ph-del" data-delph="${i}">✕</button></div>`).join("")}<label class="ph-add">＋ 拍照<br>上傳<input type="file" accept="image/*" data-addph="wallet" style="display:none"></label></div></div>
     <div class="txn-form">
       <div style="width:100%;display:flex;gap:8px">
@@ -730,10 +744,10 @@ $("#list").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)o
 $("#list").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openDetail(e.target.dataset.id);}});
 $("#wList").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openWallet(c.dataset.wid);});
 $("#wList").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openWallet(e.target.dataset.wid);}});
-$("#dBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("order");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("order",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const o=orders.find(x=>x.id===openId);if(o)viewPhoto((o.photos||[])[Number(vp.dataset.viewph)]);return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
+$("#dBody").addEventListener("click",e=>{const rn=e.target.closest("[data-renew]");if(rn){renewFromOrder();return;}const aw=e.target.closest("[data-addwalletfor]");if(aw){const o=orders.find(x=>x.id===openId);if(o)addWalletForCustomer(o.customer,o.phone);return;}const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("order");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("order",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const o=orders.find(x=>x.id===openId);if(o)viewPhoto((o.photos||[])[Number(vp.dataset.viewph)]);return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
 $("#dBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";return;}const d=e.target.closest(".pdate");if(d)setPeriodDate(Number(d.dataset.p),d.value);});
 $("#wBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";}});
-$("#wBody").addEventListener("click",e=>{const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("wallet");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("wallet",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const w=wallets.find(x=>x.id===openW);if(w)viewPhoto((w.photos||[])[Number(vp.dataset.viewph)]);return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
+$("#wBody").addEventListener("click",e=>{const ao=e.target.closest("[data-addorderfor]");if(ao){const w=wallets.find(x=>x.id===openW);if(w)addOrderForCustomer(w.name,w.phone);return;}const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("wallet");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("wallet",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const w=wallets.find(x=>x.id===openW);if(w)viewPhoto((w.photos||[])[Number(vp.dataset.viewph)]);return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
 $("#delBtn").addEventListener("click",delOrder);
 $("#wDelBtn").addEventListener("click",delWallet);
 $("#orderForm").addEventListener("submit",submitForm);
