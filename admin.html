@@ -119,7 +119,9 @@
   .info-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13.5px;margin-bottom:18px}
   .info-grid dt{color:var(--ink-soft)}.info-grid dd{margin:0;font-weight:600}
   .periods h3,.txns h3{font-size:13px;color:var(--ink-soft);font-family:inherit;font-weight:700;letter-spacing:.04em;margin-bottom:9px;display:flex;align-items:center;gap:8px}
-  .p-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--surface)}
+  .p-row{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--surface)}
+  .p-extra{flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .ptrack{flex:1 1 160px;min-width:120px;font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 9px}.ptrack:focus{outline:2px solid var(--accent);outline-offset:1px}
   .p-row.ship{background:var(--good-bg);border-color:transparent}
   .p-row .pn{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none;font-variant-numeric:tabular-nums}
   .p-row.ship .pn{background:var(--good);color:#fff}
@@ -550,8 +552,8 @@ function openDetail(id){
       ${(o.periods||[]).map(p=>{const overdue=!p.shipped&&p.ym<nowYm;const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?p.shippedAt:"";
         return `<div class="p-row ${p.shipped?"ship":""}"><div class="pn">${p.n}</div>
           <div class="p-info"><div class="pm">${ymLabel(p.ym)}</div><div class="ps ${overdue?"due":""}">${p.shipped?"✓ 已出貨":(overdue?"⚠ 逾期未出":p.ym===nowYm?"本月待出貨":"待出貨")}</div></div>
-          ${p.shipped?`<input type="date" class="pdate" data-p="${p.n}" value="${dv}" aria-label="出貨日期">`:""}
-          <button class="toggle ${p.shipped?"on":""}" data-p="${p.n}">${p.shipped?"已出貨":"標記已出"}</button></div>`;}).join("")}
+          <button class="toggle ${p.shipped?"on":""}" data-p="${p.n}">${p.shipped?"已出貨":"標記已出"}</button>
+          ${p.shipped?`<div class="p-extra"><input type="date" class="pdate" data-p="${p.n}" value="${dv}" aria-label="出貨日期"><input type="text" class="ptrack" data-p="${p.n}" value="${esc(p.tracking||"")}" placeholder="運單號碼 / 備註（客人看得到）" aria-label="運單號碼"></div>`:""}</div>`;}).join("")}
     </div>`;
   $("#detailOverlay").hidden=false;
 }
@@ -560,6 +562,8 @@ async function togglePeriod(n){const o=orders.find(x=>x.id===openId);if(!o)retur
   p.shipped=!p.shipped;p.shippedAt=p.shipped?today():null;openDetail(openId);renderSubs();persistPeriods(o);}
 async function setPeriodDate(n,val){const o=orders.find(x=>x.id===openId);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
   p.shippedAt=val||today();persistPeriods(o);}
+async function setPeriodTrack(n,val){const o=orders.find(x=>x.id===openId);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
+  p.tracking=(val||"").trim();persistPeriods(o);}
 async function delOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;if(!confirm(`確定刪除「${o.customer}」的訂單？此動作無法復原。`))return;
   try{await sb.from("mango_orders").delete().eq("id",o.id);}catch(e){console.warn(e);}closeAll();loadAll();}
 
@@ -745,7 +749,7 @@ $("#list").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.t
 $("#wList").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openWallet(c.dataset.wid);});
 $("#wList").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openWallet(e.target.dataset.wid);}});
 $("#dBody").addEventListener("click",e=>{const rn=e.target.closest("[data-renew]");if(rn){renewFromOrder();return;}const aw=e.target.closest("[data-addwalletfor]");if(aw){const o=orders.find(x=>x.id===openId);if(o)addWalletForCustomer(o.customer,o.phone);return;}const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("order");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("order",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const o=orders.find(x=>x.id===openId);if(o)viewPhoto((o.photos||[])[Number(vp.dataset.viewph)]);return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
-$("#dBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";return;}const d=e.target.closest(".pdate");if(d)setPeriodDate(Number(d.dataset.p),d.value);});
+$("#dBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";return;}const d=e.target.closest(".pdate");if(d){setPeriodDate(Number(d.dataset.p),d.value);return;}const tk=e.target.closest(".ptrack");if(tk)setPeriodTrack(Number(tk.dataset.p),tk.value);});
 $("#wBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";}});
 $("#wBody").addEventListener("click",e=>{const ao=e.target.closest("[data-addorderfor]");if(ao){const w=wallets.find(x=>x.id===openW);if(w)addOrderForCustomer(w.name,w.phone);return;}const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("wallet");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("wallet",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const w=wallets.find(x=>x.id===openW);if(w)viewPhoto((w.photos||[])[Number(vp.dataset.viewph)]);return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
 $("#delBtn").addEventListener("click",delOrder);

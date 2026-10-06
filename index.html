@@ -90,7 +90,8 @@
   .sub-meta{font-size:13px;color:var(--ink-soft);display:flex;gap:6px;flex-wrap:wrap}
   .sub-meta b{color:var(--ink)}
   .pd-list{margin-top:11px;border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px}
-  .pd{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .pd{display:flex;align-items:center;flex-wrap:wrap;gap:9px;font-size:12.5px}
+  .pd-track{flex-basis:100%;padding-left:31px;color:var(--ink-soft);font-size:12px;word-break:break-all}
   .pd-n{width:22px;height:22px;border-radius:6px;background:var(--surface-2);display:grid;place-items:center;font-weight:700;flex:none;font-variant-numeric:tabular-nums}
   .pd-m{color:var(--ink)}
   .pd-s{margin-left:auto;color:var(--pending);font-weight:600}
@@ -226,7 +227,7 @@ function renderResults(data){
         <div class="bar"><i style="width:${pct}%"></i></div>
         <div class="sub-meta"><span>已配送 <b>${shipped}</b> / ${total} 期</span><span>·</span><span>${nextTxt}</span></div>
         <div class="pd-list">${periods.map(p=>{const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?" "+p.shippedAt:"";
-          return `<div class="pd"><span class="pd-n">${p.n}</span><span class="pd-m">${ymLabel(p.ym)}</span><span class="pd-s ${p.shipped?"done":""}">${p.shipped?("✓ 已出貨"+dv):"待出貨"}</span></div>`;}).join("")}</div>
+          return `<div class="pd"><span class="pd-n">${p.n}</span><span class="pd-m">${ymLabel(p.ym)}</span><span class="pd-s ${p.shipped?"done":""}">${p.shipped?("✓ 已出貨"+dv):"待出貨"}</span>${p.shipped&&p.tracking?`<span class="pd-track">🚚 運單／備註：${esc(p.tracking)}</span>`:""}</div>`;}).join("")}</div>
       </div>`;
     }).join("");
     html+=`</div></div>`;
