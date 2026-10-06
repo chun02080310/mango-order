@@ -315,8 +315,7 @@
       <div class="field"><label>期數（可調整）<span class="req">*</span></label><select id="f_periods"></select></div>
     </div>
     <div class="row2">
-      <div class="field"><label>收件方式</label><select id="f_deliv">
-        <option value="home">宅配到府</option><option value="pickup">超商取貨（超取）</option><option value="selfpick">門市自取</option><option value="onceAll">一次取全年</option></select></div>
+      <div class="field"><label>收件方式</label><div class="seg" id="f_deliv" role="group" aria-label="收件方式" data-val="home"><button type="button" data-dv="home" aria-pressed="true">宅配到府</button><button type="button" data-dv="pickup" aria-pressed="false">超商取貨</button><button type="button" data-dv="selfpick" aria-pressed="false">門市自取</button><button type="button" data-dv="onceAll" aria-pressed="false">一次取全年</button></div></div>
       <div class="field"><label>首次出貨月份 <span class="req">*</span></label><input id="f_start" type="month" required></div>
     </div>
     <div class="field"><label>收件資訊（門市 / 地址）</label><input id="f_address" placeholder="例：7-11 芒果門市 / 台北市…"></div>
@@ -402,6 +401,7 @@
   <div class="modal-body"><form class="order-form" id="profileForm">
     <div class="field"><label>姓名 <span class="req">*</span></label><input id="pf_name" required></div>
     <div class="field"><label>電話</label><input id="pf_phone" inputmode="tel"></div>
+    <div class="field" id="pfDelivField"><label>收件方式</label><div class="seg" id="pf_deliv" role="group" aria-label="收件方式" data-val="home"><button type="button" data-dv="home">宅配到府</button><button type="button" data-dv="pickup">超商取貨</button><button type="button" data-dv="selfpick">門市自取</button><button type="button" data-dv="onceAll">一次取全年</button></div></div>
     <div class="field" id="pfAddrField"><label>收件資訊（門市 / 地址）</label><input id="pf_addr"></div>
     <div class="field"><label>備註</label><textarea id="pf_note"></textarea></div>
     <div class="err" id="profileErr" hidden></div>
@@ -574,7 +574,7 @@ function renewFromOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;
   const nextStart=P.length?addMonths(lastYm,step):nowYm;
   closeAll();openForm();
   $("#f_customer").value=o.customer||"";$("#f_phone").value=o.phone||"";
-  if(o.address)$("#f_address").value=o.address;if(o.deliv)$("#f_deliv").value=o.deliv;
+  if(o.address)$("#f_address").value=o.address;pickDeliv($("#f_deliv"),o.deliv||"home");
   if(o.plan&&getDef(o.plan)){pickPlan(o.plan);if(o.item)pickItem(o.item);}
   if(o.qty)$("#f_qty").value=o.qty;if(P.length)$("#f_periods").value=String(P.length);
   $("#f_start").value=nextStart;updateHint();}
@@ -631,13 +631,13 @@ async function deleteTx(i){const w=wallets.find(x=>x.id===openW);if(!w)return;co
 async function delWallet(){const w=wallets.find(x=>x.id===openW);if(!w)return;if(!confirm(`確定刪除儲值客戶「${w.name}」？餘額與所有紀錄都會消失，無法復原。`))return;
   try{await sb.from("mango_wallets").delete().eq("id",w.id);}catch(e){console.warn(e);}closeAll();loadAll();}
 function openProfile(type){profileType=type;
-  if(type==="wallet"){const w=wallets.find(x=>x.id===openW);if(!w)return;$("#pf_name").value=w.name||"";$("#pf_phone").value=w.phone||"";$("#pf_note").value=w.note||"";$("#pfAddrField").style.display="none";}
-  else{const o=orders.find(x=>x.id===openId);if(!o)return;$("#pf_name").value=o.customer||"";$("#pf_phone").value=o.phone||"";$("#pf_addr").value=o.address||"";$("#pf_note").value=o.note||"";$("#pfAddrField").style.display="flex";}
+  if(type==="wallet"){const w=wallets.find(x=>x.id===openW);if(!w)return;$("#pf_name").value=w.name||"";$("#pf_phone").value=w.phone||"";$("#pf_note").value=w.note||"";$("#pfAddrField").style.display="none";$("#pfDelivField").style.display="none";}
+  else{const o=orders.find(x=>x.id===openId);if(!o)return;$("#pf_name").value=o.customer||"";$("#pf_phone").value=o.phone||"";$("#pf_addr").value=o.address||"";$("#pf_note").value=o.note||"";$("#pfAddrField").style.display="flex";$("#pfDelivField").style.display="flex";pickDeliv($("#pf_deliv"),o.deliv||"home");}
   $("#profileErr").hidden=true;$("#profileOverlay").hidden=false;setTimeout(()=>$("#pf_name").focus(),40);}
 async function submitProfile(e){e.preventDefault();const err=$("#profileErr");const name=$("#pf_name").value.trim();if(!name){err.textContent="請填姓名";err.hidden=false;return;}
   try{
     if(profileType==="wallet"){const w=wallets.find(x=>x.id===openW);if(!w)return;await sb.from("mango_wallets").update({name,phone:$("#pf_phone").value.trim(),note:$("#pf_note").value.trim()}).eq("id",w.id);}
-    else{const o=orders.find(x=>x.id===openId);if(!o)return;await sb.from("mango_orders").update({customer:name,phone:$("#pf_phone").value.trim(),address:$("#pf_addr").value.trim(),note:$("#pf_note").value.trim()}).eq("id",o.id);}
+    else{const o=orders.find(x=>x.id===openId);if(!o)return;await sb.from("mango_orders").update({customer:name,phone:$("#pf_phone").value.trim(),address:$("#pf_addr").value.trim(),deliv:$("#pf_deliv").dataset.val||"home",note:$("#pf_note").value.trim()}).eq("id",o.id);}
   }catch(ex){err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
   $("#profileOverlay").hidden=true;await loadAll();}
 function compressImage(file,maxDim=1280,q=0.62){return new Promise((res,rej)=>{const rd=new FileReader();
@@ -680,11 +680,13 @@ function renderPlanChoices(){const defs=allPlans();$("#f_plan").innerHTML=Object
 function openForm(){form={plan:null,item:null};$("#orderForm").reset();renderPlanChoices();
   $("#f_periods").innerHTML=Array.from({length:36},(_,i)=>`<option value="${i+1}">${i+1} 期</option>`).join("");$("#f_periods").value="12";
   $("#f_start").value=nowYm;document.querySelectorAll('#f_item button').forEach(b=>b.setAttribute("aria-pressed","false"));
-  $("#itemField").style.display="none";$("#planHint").textContent="選擇方案後，系統會自動幫你排好每一期的出貨月份。";
+  $("#itemField").style.display="none";$("#planHint").textContent="選擇方案後，系統會自動幫你排好每一期的出貨月份。";pickDeliv($("#f_deliv"),"home");
   $("#formErr").hidden=true;$("#formOverlay").hidden=false;setTimeout(()=>$("#f_customer").focus(),40);}
 function pickPlan(v){form.plan=v;document.querySelectorAll('#f_plan button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));
   const d=getDef(v);if(d)$("#f_periods").value=String(d.total);$("#itemField").style.display=d&&d.needItem?"flex":"none";if(!d||!d.needItem)form.item=null;updateHint();}
 function pickItem(v){form.item=v;document.querySelectorAll('#f_item button').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));updateHint();}
+function pickDeliv(seg,v){if(!seg)return;v=v||"home";seg.dataset.val=v;seg.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.dv===v)));}
+document.addEventListener("click",e=>{const b=e.target.closest('.seg [data-dv]');if(!b)return;pickDeliv(b.closest(".seg"),b.dataset.dv);});
 function updateHint(){if(!form.plan){$("#planHint").textContent="選擇方案後，系統會自動幫你排好每一期的出貨月份。";return;}
   const d=getDef(form.plan),start=$("#f_start").value||nowYm;const total=Math.max(1,parseInt($("#f_periods").value)||d.total);const qty=Math.max(1,parseInt($("#f_qty").value)||1);
   const last=addMonths(start,(total-1)*(d.cadence==="bimonthly"?2:1));
@@ -696,7 +698,7 @@ function makeOrderRec(planId,input){const d=getDef(planId)||{name:planId,total:1
 async function submitForm(e){e.preventDefault();const err=$("#formErr");const showErr=m=>{err.textContent=m;err.hidden=false;$("#saveBtn").disabled=false;};
   const customer=$("#f_customer").value.trim();if(!customer)return showErr("請填客戶名稱");if(!form.plan)return showErr("請選擇方案");
   if(getDef(form.plan).needItem&&!form.item)return showErr("請選擇品項（耳掛／浸泡）");
-  const input={customer,item:form.item,qty:Math.max(1,parseInt($("#f_qty").value)||1),total:Math.max(1,parseInt($("#f_periods").value)||getDef(form.plan).total),deliv:$("#f_deliv").value,address:$("#f_address").value.trim(),phone:$("#f_phone").value.trim(),price:$("#f_price").value,note:$("#f_note").value.trim(),startYm:$("#f_start").value||nowYm};
+  const input={customer,item:form.item,qty:Math.max(1,parseInt($("#f_qty").value)||1),total:Math.max(1,parseInt($("#f_periods").value)||getDef(form.plan).total),deliv:$("#f_deliv").dataset.val||"home",address:$("#f_address").value.trim(),phone:$("#f_phone").value.trim(),price:$("#f_price").value,note:$("#f_note").value.trim(),startYm:$("#f_start").value||nowYm};
   const rec=makeOrderRec(form.plan,input);$("#saveBtn").disabled=true;
   try{await sb.from("mango_orders").insert(rec);}catch(ex){return showErr("儲存失敗，請再試一次。");}
   $("#saveBtn").disabled=false;closeAll();loadAll();}
