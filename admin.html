@@ -119,6 +119,8 @@
   .info-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13.5px;margin-bottom:18px}
   .info-grid dt{color:var(--ink-soft)}.info-grid dd{margin:0;font-weight:600}
   .periods h3,.txns h3{font-size:13px;color:var(--ink-soft);font-family:inherit;font-weight:700;letter-spacing:.04em;margin-bottom:9px;display:flex;align-items:center;gap:8px}
+  .ord-block{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:16px;background:var(--surface-2)}
+  .ord-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
   .p-row{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--surface)}
   .p-extra{flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .ptrack{flex:1 1 160px;min-width:120px;font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 9px}.ptrack:focus{outline:2px solid var(--accent);outline-offset:1px}
@@ -299,7 +301,7 @@
 <div class="overlay" id="detailOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dTitle">
   <div class="modal-head"><div class="htxt"><h2 id="dTitle"></h2><div class="hsub" id="dSub"></div></div><button class="x" data-close aria-label="關閉">✕</button></div>
   <div class="modal-body" id="dBody"></div>
-  <div class="modal-foot"><button class="link-danger" id="delBtn">刪除此訂單</button><button class="btn btn-ghost" data-close>關閉</button></div>
+  <div class="modal-foot"><button class="btn btn-ghost" data-close>關閉</button></div>
 </div></div>
 
 <!-- 新增訂單 -->
@@ -454,7 +456,8 @@ function nt(n){return "NT$ "+Number(n||0).toLocaleString();}
 
 let view="subs";
 let orders=[],customPlans={},wallets=[];
-let filter="all",query="",wQuery="",openId=null,openW=null,txKind="cash",editingTxIdx=null,profileType="wallet",resets=[];
+let filter="all",query="",wQuery="",openId=null,openW=null,openCust=null,txKind="cash",editingTxIdx=null,profileType="wallet",resets=[];
+const custKey=o=>(((o&&o.customer)||"")+"").trim();
 let form={plan:null,item:null},planCad="monthly",editingPlanId=null;
 
 function allPlans(){return {...BUILTIN,...customPlans};}
@@ -472,7 +475,7 @@ async function loadAll(){
     orders=oR.data||[]; wallets=wR.data||[];
     customPlans={}; (pR.data||[]).forEach(r=>{customPlans[r.id]={name:r.name,short:r.short,total:r.total,cadence:r.cadence,needItem:r.need_item,descr:r.descr||"",cls:"b-custom"};});
     render();
-    if(openId&&orders.find(o=>o.id===openId))openDetail(openId);
+    if(openCust){if(orders.some(o=>custKey(o)===openCust))openCustomer(openCust);else{$("#detailOverlay").hidden=true;openCust=null;}}
     if(openW&&wallets.find(w=>w.id===openW))openWallet(openW);
   }catch(e){console.error(e);}
 }
@@ -494,24 +497,29 @@ function renderSubs(){
     <div class="tile hot"><div class="k">🔔 本月（含逾期）待出貨</div><div class="v">${dueMonth}<small> 期</small></div></div>
     <div class="tile"><div class="k">🕗 尚未出貨總期數</div><div class="v">${remainTotal}<small> 期</small></div></div>
     <div class="tile"><div class="k">✅ 已完成訂單</div><div class="v">${doneCnt}<small> 筆</small></div></div>`;
-  let rows=orders.slice();
-  if(filter==="active")rows=rows.filter(o=>stats(o).remain>0);
-  else if(filter==="thismonth")rows=rows.filter(o=>(o.periods||[]).some(p=>!p.shipped&&p.ym<=nowYm));
-  else if(filter==="done")rows=rows.filter(o=>stats(o).remain===0);
-  if(query)rows=rows.filter(o=>(o.customer||"").toLowerCase().includes(query));
+  // 依「客人姓名」分組：同一個名字只出現一張卡
+  const gmap={},groups=[];
+  orders.forEach(o=>{const k=custKey(o);if(!gmap[k]){gmap[k]={key:k,list:[]};groups.push(gmap[k]);}gmap[k].list.push(o);});
+  let gs=groups.slice();
+  if(filter==="active")gs=gs.filter(g=>g.list.some(o=>stats(o).remain>0));
+  else if(filter==="thismonth")gs=gs.filter(g=>g.list.some(o=>(o.periods||[]).some(p=>!p.shipped&&p.ym<=nowYm)));
+  else if(filter==="done")gs=gs.filter(g=>g.list.every(o=>stats(o).remain===0));
+  if(query)gs=gs.filter(g=>g.key.toLowerCase().includes(query));
   const list=$("#list");
-  if(!rows.length){list.innerHTML=`<div class="empty"><div class="big">${orders.length?"🔍":"📦"}</div><h2>${orders.length?"沒有符合的訂單":"還沒有任何訂單"}</h2><p>${orders.length?"換個篩選條件或搜尋看看。":"點右上角「＋ 新增訂單」，把客人下的定期方案登記進來。"}</p></div>`;return;}
-  list.innerHTML=rows.map(o=>{
-    const s=stats(o),pct=s.total?Math.round(s.shipped/s.total*100):0;
-    const item=o.item&&ITEMS[o.item]?ITEMS[o.item].name:"";
-    const dueNow=!!(s.next&&s.next.ym<=nowYm);
+  if(!gs.length){list.innerHTML=`<div class="empty"><div class="big">${orders.length?"🔍":"📦"}</div><h2>${orders.length?"沒有符合的訂單":"還沒有任何訂單"}</h2><p>${orders.length?"換個篩選條件或搜尋看看。":"點右上角「＋ 新增訂單」，把客人下的定期方案登記進來。"}</p></div>`;return;}
+  list.innerHTML=gs.map(g=>{
+    let remTot=0,shipTot=0,totTot=0,anyOverdue=false,anyDueNow=false;
+    g.list.forEach(o=>{const s=stats(o);remTot+=s.remain;shipTot+=s.shipped;totTot+=s.total;if(s.overdue)anyOverdue=true;if(s.next&&s.next.ym<=nowYm)anyDueNow=true;});
+    const pct=totTot?Math.round(shipTot/totTot*100):0;
+    const phone=(g.list.find(o=>o.phone)||{}).phone||"";
     let pill,pillcls;
-    if(s.remain===0){pill="已全部出貨";pillcls="done";}else if(s.overdue){pill="逾期！剩 "+s.remain+" 期";pillcls="due";}else{pill="尚未出貨 "+s.remain+" 期";pillcls="go";}
-    const nextTxt=s.next?`<div class="next${s.overdue?" due":""}">下一期：<b>第 ${s.next.n} 期・${ymLabel(s.next.ym)}</b>${s.overdue?" ⚠ 已逾期":s.dueThisMonth?" ・本月":""}</div>`:`<div class="next">🎉 已完成所有配送</div>`;
-    return `<article class="card" tabindex="0" role="button" data-id="${o.id}">
-      <div class="who"><div class="name-row">${dueNow?`<span class="due-dot" title="有待出貨"></span>`:""}<span class="cust">${esc(o.customer)}</span><span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span>${item?`<span class="meta">${item}</span>`:""}</div>
-        <div class="meta">${o.qty>1?`<b style="color:var(--ink)">×${o.qty} 組</b><span class="dot">·</span>`:""}${DELIV[o.deliv]||""}<span class="dot">·</span>${CAD[o.cadence]||""}<span class="dot">·</span>起 ${ymLabel(o.start_ym)}</div>${nextTxt}</div>
-      <div class="prog"><div class="frac"><b>${s.shipped}</b> / ${s.total} 期已出</div><div class="bar"><i style="width:${pct}%"></i></div><span class="remain-pill ${pillcls}">${pill}</span></div></article>`;
+    if(remTot===0){pill="已全部出貨";pillcls="done";}else if(anyOverdue){pill="逾期！剩 "+remTot+" 期";pillcls="due";}else{pill="尚未出貨 "+remTot+" 期";pillcls="go";}
+    const plans=g.list.map(o=>`<span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span>`).join(" ");
+    return `<article class="card" tabindex="0" role="button" data-cust="${esc(g.key)}">
+      <div class="who"><div class="name-row">${anyDueNow?`<span class="due-dot" title="有待出貨"></span>`:""}<span class="cust">${esc(g.key)}</span>${g.list.length>1?`<span class="meta" style="font-weight:700;color:var(--accent-deep)">${g.list.length} 張訂單</span>`:""}</div>
+        <div class="name-row" style="gap:5px;margin-top:4px;flex-wrap:wrap">${plans}</div>
+        <div class="meta">${phone?esc(phone)+"<span class='dot'>·</span>":""}已出 ${shipTot}/${totTot} 期</div></div>
+      <div class="prog"><div class="frac"><b>${shipTot}</b> / ${totTot} 期已出</div><div class="bar"><i style="width:${pct}%"></i></div><span class="remain-pill ${pillcls}">${pill}</span></div></article>`;
   }).join("");
 }
 function renderWallet(){
@@ -532,40 +540,46 @@ function renderWallet(){
         <div style="font-size:13px;font-weight:800;color:var(--accent-deep);margin-top:3px">🎁 ${nt(bonus)}</div></div></article>`;}).join("");
 }
 
-/* 訂單詳情 */
-function openDetail(id){
-  const o=orders.find(x=>x.id===id);if(!o)return;openId=id;
-  const s=stats(o);const item=o.item&&ITEMS[o.item]?ITEMS[o.item]:null;
-  $("#dTitle").textContent=o.customer;
-  $("#dSub").innerHTML=`<span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span> ${esc(o.plan_name||"")}`;
-  $("#dBody").innerHTML=`
-    <div class="detail-hero"><div class="num">${s.remain}</div><div class="lbl"><b>還有 ${s.remain} 期尚未出貨</b>已出 ${s.shipped} 期，共 ${s.total} 期${s.overdue?' ・<span style="color:var(--overdue);font-weight:700">有逾期</span>':""}</div></div>
-    <dl class="info-grid">
-      ${o.descr?`<dt>方案內容</dt><dd>${esc(o.descr)}${item?`・${item.name} ${item.packs*(o.qty||1)} 包/期`:""}</dd>`:(item?`<dt>品項</dt><dd>${item.name} ${item.packs*(o.qty||1)} 包/期</dd>`:"")}
-      <dt>組數</dt><dd>${o.qty||1} 組</dd><dt>收件方式</dt><dd>${DELIV[o.deliv]||"—"}</dd>
-      <dt>收件資訊</dt><dd>${esc(o.address)||"—"}</dd><dt>電話</dt><dd>${esc(o.phone)||"—"}</dd>
-      ${o.price!=null?`<dt>方案金額</dt><dd>${nt(o.price)}</dd>`:""}${o.note?`<dt>備註</dt><dd>${esc(o.note)}</dd>`:""}
-    </dl>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn btn-primary" data-renew="1" style="padding:8px 14px;font-size:13px">➕ 續訂（用同資料再開一張）</button><button class="btn btn-ghost" data-addwalletfor="1" style="padding:8px 14px;font-size:13px">💰 幫這位客人加儲值</button><button class="btn btn-ghost" data-editprofile="order" style="padding:8px 14px;font-size:13px">✎ 編輯客戶資料</button><button class="btn btn-ghost" data-resetpass="order" style="padding:8px 14px;font-size:13px">🔑 重設客人密碼</button></div>
-    <div class="photos-sec"><h3>📷 貨單／明細照片</h3><div class="photo-grid">${(o.photos||[]).map((src,i)=>`<div class="ph"><img src="${src}" data-viewph="${i}"><button class="ph-del" data-delph="${i}">✕</button></div>`).join("")}<label class="ph-add">＋ 拍照<br>上傳<input type="file" accept="image/*" data-addph="order" style="display:none"></label></div></div>
-    <div class="periods"><h3>📅 各期出貨狀況<span style="margin-left:auto;font-weight:600;color:var(--ink-faint)">標記後可改日期</span></h3>
+/* 客人詳情：同一個名字的所有訂單一起顯示 */
+function openCustomer(key){
+  const L=orders.filter(o=>custKey(o)===key).sort((a,b)=>((a.start_ym||"")+"").localeCompare((b.start_ym||"")+""));
+  if(!L.length){$("#detailOverlay").hidden=true;openCust=null;return;}
+  openCust=key;openId=L[0].id;
+  const phone=(L.find(o=>o.phone)||{}).phone||"";
+  let remTot=0,shipTot=0,totTot=0,anyOverdue=false;
+  L.forEach(o=>{const s=stats(o);remTot+=s.remain;shipTot+=s.shipped;totTot+=s.total;if(s.overdue)anyOverdue=true;});
+  $("#dTitle").textContent=key;
+  $("#dSub").innerHTML=`共 ${L.length} 張訂單${phone?` ・ ${esc(phone)}`:""}`;
+  let html=`<div class="detail-hero"><div class="num">${remTot}</div><div class="lbl"><b>全部還有 ${remTot} 期尚未出貨</b>已出 ${shipTot} / ${totTot} 期${anyOverdue?' ・<span style="color:var(--overdue);font-weight:700">有逾期</span>':""}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"><button class="btn btn-primary" data-addorderforcust="1" style="padding:8px 14px;font-size:13px">➕ 新增一張訂閱</button><button class="btn btn-ghost" data-addwalletfor="1" style="padding:8px 14px;font-size:13px">💰 幫這位客人加儲值</button><button class="btn btn-ghost" data-resetpass="order" style="padding:8px 14px;font-size:13px">🔑 重設客人密碼</button></div>`;
+  html+=L.map(o=>{
+    const s=stats(o);const item=o.item&&ITEMS[o.item]?ITEMS[o.item]:null;
+    let pill,pillcls;if(s.remain===0){pill="已全部出貨";pillcls="done";}else if(s.overdue){pill="逾期！剩 "+s.remain+" 期";pillcls="due";}else{pill="尚未出貨 "+s.remain+" 期";pillcls="go";}
+    return `<section class="ord-block" data-oid="${o.id}">
+      <div class="ord-head"><span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span><b>${esc(o.plan_name||"")}</b>${o.qty>1?`<span class="meta">×${o.qty} 組</span>`:""}<span class="remain-pill ${pillcls}" style="margin-left:auto">${pill}</span></div>
+      <div class="meta" style="margin:7px 0 11px">${DELIV[o.deliv]||""}<span class="dot">·</span>${CAD[o.cadence]||""}<span class="dot">·</span>起 ${ymLabel(o.start_ym)}・已出 ${s.shipped}/${s.total} 期${item?`<br>品項：${item.name} ${item.packs*(o.qty||1)} 包/期`:""}${o.address?`<br>收件：${esc(o.address)}`:""}${o.price!=null?`<br>金額：${nt(o.price)}`:""}${o.note?`<br>備註：${esc(o.note)}`:""}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-primary" data-renew="1" style="padding:7px 12px;font-size:12.5px">➕ 續訂</button><button class="btn btn-ghost" data-editprofile="order" style="padding:7px 12px;font-size:12.5px">✎ 編輯</button><button class="link-danger" data-delorder="1" style="font-size:12.5px">刪除此訂單</button></div>
+      <div class="photos-sec"><h3>📷 貨單／明細照片</h3><div class="photo-grid">${(o.photos||[]).map((src,i)=>`<div class="ph"><img src="${src}" data-viewph="${i}"><button class="ph-del" data-delph="${i}">✕</button></div>`).join("")}<label class="ph-add">＋ 拍照<br>上傳<input type="file" accept="image/*" data-addph="order" style="display:none"></label></div></div>
+      <div class="periods"><h3>📅 各期出貨狀況<span style="margin-left:auto;font-weight:600;color:var(--ink-faint)">標記後可填運單</span></h3>
       ${(o.periods||[]).map(p=>{const overdue=!p.shipped&&p.ym<nowYm;const dv=(p.shippedAt&&/^\d{4}-\d{2}-\d{2}$/.test(p.shippedAt))?p.shippedAt:"";
         return `<div class="p-row ${p.shipped?"ship":""}"><div class="pn">${p.n}</div>
           <div class="p-info"><div class="pm">${ymLabel(p.ym)}</div><div class="ps ${overdue?"due":""}">${p.shipped?"✓ 已出貨":(overdue?"⚠ 逾期未出":p.ym===nowYm?"本月待出貨":"待出貨")}</div></div>
           <button class="toggle ${p.shipped?"on":""}" data-p="${p.n}">${p.shipped?"已出貨":"標記已出"}</button>
           ${p.shipped?`<div class="p-extra"><input type="date" class="pdate" data-p="${p.n}" value="${dv}" aria-label="出貨日期"><input type="text" class="ptrack" data-p="${p.n}" value="${esc(p.tracking||"")}" placeholder="運單號碼 / 備註（客人看得到）" aria-label="運單號碼"></div>`:""}</div>`;}).join("")}
-    </div>`;
+      </div></section>`;
+  }).join("");
+  $("#dBody").innerHTML=html;
   $("#detailOverlay").hidden=false;
 }
 async function persistPeriods(o){try{await sb.from("mango_orders").update({periods:o.periods}).eq("id",o.id);}catch(e){console.warn(e);}}
 async function togglePeriod(n){const o=orders.find(x=>x.id===openId);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
-  p.shipped=!p.shipped;p.shippedAt=p.shipped?today():null;openDetail(openId);renderSubs();persistPeriods(o);}
+  p.shipped=!p.shipped;p.shippedAt=p.shipped?today():null;openCustomer(openCust);renderSubs();persistPeriods(o);}
 async function setPeriodDate(n,val){const o=orders.find(x=>x.id===openId);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
   p.shippedAt=val||today();persistPeriods(o);}
 async function setPeriodTrack(n,val){const o=orders.find(x=>x.id===openId);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
   p.tracking=(val||"").trim();persistPeriods(o);}
-async function delOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;if(!confirm(`確定刪除「${o.customer}」的訂單？此動作無法復原。`))return;
-  try{await sb.from("mango_orders").delete().eq("id",o.id);}catch(e){console.warn(e);}closeAll();loadAll();}
+async function delOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;if(!confirm(`確定刪除「${o.customer}」的這張「${o.plan_name||"方案"}」訂單？此動作無法復原。`))return;
+  try{await sb.from("mango_orders").delete().eq("id",o.id);}catch(e){console.warn(e);}await loadAll();}
 
 /* 續訂 / 跨項目新增：都帶同一組姓名＋電話，客人登入才綁得在一起同步看到 */
 function renewFromOrder(){const o=orders.find(x=>x.id===openId);if(!o)return;
@@ -637,7 +651,11 @@ function openProfile(type){profileType=type;
 async function submitProfile(e){e.preventDefault();const err=$("#profileErr");const name=$("#pf_name").value.trim();if(!name){err.textContent="請填姓名";err.hidden=false;return;}
   try{
     if(profileType==="wallet"){const w=wallets.find(x=>x.id===openW);if(!w)return;await sb.from("mango_wallets").update({name,phone:$("#pf_phone").value.trim(),note:$("#pf_note").value.trim()}).eq("id",w.id);}
-    else{const o=orders.find(x=>x.id===openId);if(!o)return;await sb.from("mango_orders").update({customer:name,phone:$("#pf_phone").value.trim(),address:$("#pf_addr").value.trim(),deliv:$("#pf_deliv").dataset.val||"home",note:$("#pf_note").value.trim()}).eq("id",o.id);}
+    else{const o=orders.find(x=>x.id===openId);if(!o)return;const newPhone=$("#pf_phone").value.trim();
+      const grpIds=orders.filter(x=>custKey(x)===openCust).map(x=>x.id);
+      await sb.from("mango_orders").update({customer:name,phone:newPhone}).in("id",grpIds);
+      await sb.from("mango_orders").update({address:$("#pf_addr").value.trim(),deliv:$("#pf_deliv").dataset.val||"home",note:$("#pf_note").value.trim()}).eq("id",o.id);
+      openCust=name;}
   }catch(ex){err.textContent="儲存失敗，請再試一次。";err.hidden=false;return;}
   $("#profileOverlay").hidden=true;await loadAll();}
 function compressImage(file,maxDim=1280,q=0.62){return new Promise((res,rej)=>{const rd=new FileReader();
@@ -646,12 +664,12 @@ function compressImage(file,maxDim=1280,q=0.62){return new Promise((res,rej)=>{c
     const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
     try{res(c.toDataURL("image/jpeg",q));}catch(e){rej(e);}};img.onerror=rej;img.src=rd.result;};rd.onerror=rej;rd.readAsDataURL(file);});}
 async function addPhoto(scope,file){if(!file)return;let url;try{url=await compressImage(file);}catch(e){alert("圖片讀取失敗，請換一張");return;}
-  if(scope==="order"){const o=orders.find(x=>x.id===openId);if(!o)return;const photos=[...(o.photos||[]),url];o.photos=photos;openDetail(openId);
+  if(scope==="order"){const o=orders.find(x=>x.id===openId);if(!o)return;const photos=[...(o.photos||[]),url];o.photos=photos;openCustomer(openCust);
     try{await sb.from("mango_orders").update({photos}).eq("id",o.id);}catch(e){console.warn(e);}}
   else{const w=wallets.find(x=>x.id===openW);if(!w)return;const photos=[...(w.photos||[]),url];w.photos=photos;openWallet(openW);
     try{await sb.from("mango_wallets").update({photos}).eq("id",w.id);}catch(e){console.warn(e);}}}
 async function delPhoto(scope,i){if(!confirm("刪除這張照片？"))return;
-  if(scope==="order"){const o=orders.find(x=>x.id===openId);if(!o)return;const photos=(o.photos||[]).slice();photos.splice(i,1);o.photos=photos;openDetail(openId);
+  if(scope==="order"){const o=orders.find(x=>x.id===openId);if(!o)return;const photos=(o.photos||[]).slice();photos.splice(i,1);o.photos=photos;openCustomer(openCust);
     try{await sb.from("mango_orders").update({photos}).eq("id",o.id);}catch(e){console.warn(e);}}
   else{const w=wallets.find(x=>x.id===openW);if(!w)return;const photos=(w.photos||[]).slice();photos.splice(i,1);w.photos=photos;openWallet(openW);
     try{await sb.from("mango_wallets").update({photos}).eq("id",w.id);}catch(e){console.warn(e);}}}
@@ -739,22 +757,30 @@ async function delPlan(id){const d=getDef(id);if(!d)return;if(!confirm(`刪除�
 /* 切換／關閉 */
 function setView(v){view=v;$("#subsView").hidden=v!=="subs";$("#walletView").hidden=v!=="wallet";$("#subsActions").hidden=v!=="subs";$("#walletActions").hidden=v!=="wallet";
   document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.view===v)));render();}
-function closeAll(){document.querySelectorAll(".overlay").forEach(o=>o.hidden=true);openId=null;openW=null;}
+function closeAll(){document.querySelectorAll(".overlay").forEach(o=>o.hidden=true);openId=null;openW=null;openCust=null;}
 
 /* 事件 */
 document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.view)));
 $("#addBtn").addEventListener("click",openForm);
 $("#planBtn").addEventListener("click",openPlanMgr);
 $("#addWalletBtn").addEventListener("click",openWalletForm);
-$("#list").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openDetail(c.dataset.id);});
-$("#list").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openDetail(e.target.dataset.id);}});
+$("#list").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openCustomer(c.dataset.cust);});
+$("#list").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openCustomer(e.target.dataset.cust);}});
 $("#wList").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openWallet(c.dataset.wid);});
 $("#wList").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("card")){e.preventDefault();openWallet(e.target.dataset.wid);}});
-$("#dBody").addEventListener("click",e=>{const rn=e.target.closest("[data-renew]");if(rn){renewFromOrder();return;}const aw=e.target.closest("[data-addwalletfor]");if(aw){const o=orders.find(x=>x.id===openId);if(o)addWalletForCustomer(o.customer,o.phone);return;}const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("order");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("order",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const o=orders.find(x=>x.id===openId);if(o)viewPhoto((o.photos||[])[Number(vp.dataset.viewph)]);return;}const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
-$("#dBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";return;}const d=e.target.closest(".pdate");if(d){setPeriodDate(Number(d.dataset.p),d.value);return;}const tk=e.target.closest(".ptrack");if(tk)setPeriodTrack(Number(tk.dataset.p),tk.value);});
+$("#dBody").addEventListener("click",e=>{const blk=e.target.closest("[data-oid]");if(blk)openId=blk.dataset.oid;
+  const ac=e.target.closest("[data-addorderforcust]");if(ac){const o=orders.find(x=>custKey(x)===openCust);if(o)addOrderForCustomer(o.customer,o.phone);return;}
+  const rn=e.target.closest("[data-renew]");if(rn){renewFromOrder();return;}
+  const aw=e.target.closest("[data-addwalletfor]");if(aw){const o=orders.find(x=>x.id===openId)||orders.find(x=>custKey(x)===openCust);if(o)addWalletForCustomer(o.customer,o.phone);return;}
+  const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("order");return;}
+  const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("order");return;}
+  const dl=e.target.closest("[data-delorder]");if(dl){delOrder();return;}
+  const dp=e.target.closest("[data-delph]");if(dp){delPhoto("order",Number(dp.dataset.delph));return;}
+  const vp=e.target.closest("[data-viewph]");if(vp){const o=orders.find(x=>x.id===openId);if(o)viewPhoto((o.photos||[])[Number(vp.dataset.viewph)]);return;}
+  const t=e.target.closest(".toggle");if(t)togglePeriod(Number(t.dataset.p));});
+$("#dBody").addEventListener("change",e=>{const blk=e.target.closest("[data-oid]");if(blk)openId=blk.dataset.oid;const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";return;}const d=e.target.closest(".pdate");if(d){setPeriodDate(Number(d.dataset.p),d.value);return;}const tk=e.target.closest(".ptrack");if(tk)setPeriodTrack(Number(tk.dataset.p),tk.value);});
 $("#wBody").addEventListener("change",e=>{const f=e.target.closest('input[type="file"][data-addph]');if(f&&f.files&&f.files[0]){addPhoto(f.dataset.addph,f.files[0]);f.value="";}});
 $("#wBody").addEventListener("click",e=>{const ao=e.target.closest("[data-addorderfor]");if(ao){const w=wallets.find(x=>x.id===openW);if(w)addOrderForCustomer(w.name,w.phone);return;}const ep=e.target.closest("[data-editprofile]");if(ep){openProfile("wallet");return;}const rp=e.target.closest("[data-resetpass]");if(rp){resetCustPass("wallet");return;}const dp=e.target.closest("[data-delph]");if(dp){delPhoto("wallet",Number(dp.dataset.delph));return;}const vp=e.target.closest("[data-viewph]");if(vp){const w=wallets.find(x=>x.id===openW);if(w)viewPhoto((w.photos||[])[Number(vp.dataset.viewph)]);return;}const k=e.target.closest("[data-kind]");if(k){txKind=k.dataset.kind;document.querySelectorAll("#wBody .kind-btn").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.kind===txKind)));return;}const ed=e.target.closest("[data-edittx]");if(ed){editTx(Number(ed.dataset.edittx));return;}const dl=e.target.closest("[data-deltx]");if(dl){deleteTx(Number(dl.dataset.deltx));return;}const t=e.target.closest("[data-txn]");if(t)addTxn(t.dataset.txn);});
-$("#delBtn").addEventListener("click",delOrder);
 $("#wDelBtn").addEventListener("click",delWallet);
 $("#orderForm").addEventListener("submit",submitForm);
 $("#walletForm").addEventListener("submit",submitWallet);
