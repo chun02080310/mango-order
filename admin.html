@@ -76,6 +76,9 @@
   .search input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
   .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5}
   .list{display:flex;flex-direction:column;gap:11px}
+  .list-sec{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:var(--ink-soft);letter-spacing:.02em;padding:14px 4px 6px}
+  .list-sec:first-child{padding-top:2px}
+  .list-sec .cnt{font-weight:700;color:var(--ink-faint);font-size:12px}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow);cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;transition:border-color .12s,transform .08s}
   .card:hover{border-color:var(--accent)}.card:active{transform:translateY(1px)}
   .card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -500,27 +503,34 @@ function renderSubs(){
   // 依「客人姓名」分組：同一個名字只出現一張卡
   const gmap={},groups=[];
   orders.forEach(o=>{const k=custKey(o);if(!gmap[k]){gmap[k]={key:k,list:[]};groups.push(gmap[k]);}gmap[k].list.push(o);});
+  // 算每位客人的狀態桶（逾期/本月/進行中/已完成）＋排序用的最近待出貨月份
+  groups.forEach(g=>{let remTot=0,shipTot=0,totTot=0,hasOver=false,hasMonth=false,nextYm="9999-99";
+    g.list.forEach(o=>{const s=stats(o);remTot+=s.remain;shipTot+=s.shipped;totTot+=s.total;
+      (o.periods||[]).forEach(p=>{if(!p.shipped){if(p.ym<nowYm)hasOver=true;else if(p.ym===nowYm)hasMonth=true;if(p.ym<nextYm)nextYm=p.ym;}});});
+    g.remTot=remTot;g.shipTot=shipTot;g.totTot=totTot;g.nextYm=nextYm;
+    g.phone=(g.list.find(o=>o.phone)||{}).phone||"";
+    g.bucket=hasOver?"overdue":hasMonth?"month":(remTot>0?"active":"done");});
   let gs=groups.slice();
-  if(filter==="active")gs=gs.filter(g=>g.list.some(o=>stats(o).remain>0));
-  else if(filter==="thismonth")gs=gs.filter(g=>g.list.some(o=>(o.periods||[]).some(p=>!p.shipped&&p.ym<=nowYm)));
-  else if(filter==="done")gs=gs.filter(g=>g.list.every(o=>stats(o).remain===0));
   if(query)gs=gs.filter(g=>g.key.toLowerCase().includes(query));
-  const list=$("#list");
-  if(!gs.length){list.innerHTML=`<div class="empty"><div class="big">${orders.length?"🔍":"📦"}</div><h2>${orders.length?"沒有符合的訂單":"還沒有任何訂單"}</h2><p>${orders.length?"換個篩選條件或搜尋看看。":"點右上角「＋ 新增訂單」，把客人下的定期方案登記進來。"}</p></div>`;return;}
-  list.innerHTML=gs.map(g=>{
-    let remTot=0,shipTot=0,totTot=0,anyOverdue=false,anyDueNow=false;
-    g.list.forEach(o=>{const s=stats(o);remTot+=s.remain;shipTot+=s.shipped;totTot+=s.total;if(s.overdue)anyOverdue=true;if(s.next&&s.next.ym<=nowYm)anyDueNow=true;});
-    const pct=totTot?Math.round(shipTot/totTot*100):0;
-    const phone=(g.list.find(o=>o.phone)||{}).phone||"";
-    let pill,pillcls;
-    if(remTot===0){pill="已全部出貨";pillcls="done";}else if(anyOverdue){pill="逾期！剩 "+remTot+" 期";pillcls="due";}else{pill="尚未出貨 "+remTot+" 期";pillcls="go";}
+  const SECTS=[{id:"overdue",label:"🔴 逾期待出貨"},{id:"month",label:"🟡 本月待出貨"},{id:"active",label:"🟢 進行中"},{id:"done",label:"✅ 已完成"}];
+  const showIds=filter==="active"?["overdue","month","active"]:filter==="thismonth"?["overdue","month"]:filter==="done"?["done"]:["overdue","month","active","done"];
+  const byB={};gs.forEach(g=>{(byB[g.bucket]=byB[g.bucket]||[]).push(g);});
+  Object.values(byB).forEach(arr=>arr.sort((a,b)=>a.nextYm<b.nextYm?-1:a.nextYm>b.nextYm?1:a.key.localeCompare(b.key)));
+  const cardHTML=g=>{const pct=g.totTot?Math.round(g.shipTot/g.totTot*100):0;
+    let pill,pillcls;if(g.remTot===0){pill="已全部出貨";pillcls="done";}else if(g.bucket==="overdue"){pill="逾期！剩 "+g.remTot+" 期";pillcls="due";}else{pill="尚未出貨 "+g.remTot+" 期";pillcls="go";}
+    const dueNow=g.bucket==="overdue"||g.bucket==="month";
     const plans=g.list.map(o=>`<span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span>`).join(" ");
     return `<article class="card" tabindex="0" role="button" data-cust="${esc(g.key)}">
-      <div class="who"><div class="name-row">${anyDueNow?`<span class="due-dot" title="有待出貨"></span>`:""}<span class="cust">${esc(g.key)}</span>${g.list.length>1?`<span class="meta" style="font-weight:700;color:var(--accent-deep)">${g.list.length} 張訂單</span>`:""}</div>
+      <div class="who"><div class="name-row">${dueNow?`<span class="due-dot" title="有待出貨"></span>`:""}<span class="cust">${esc(g.key)}</span>${g.list.length>1?`<span class="meta" style="font-weight:700;color:var(--accent-deep)">${g.list.length} 張訂單</span>`:""}</div>
         <div class="name-row" style="gap:5px;margin-top:4px;flex-wrap:wrap">${plans}</div>
-        <div class="meta">${phone?esc(phone)+"<span class='dot'>·</span>":""}已出 ${shipTot}/${totTot} 期</div></div>
-      <div class="prog"><div class="frac"><b>${shipTot}</b> / ${totTot} 期已出</div><div class="bar"><i style="width:${pct}%"></i></div><span class="remain-pill ${pillcls}">${pill}</span></div></article>`;
-  }).join("");
+        <div class="meta">${g.phone?esc(g.phone)+"<span class='dot'>·</span>":""}已出 ${g.shipTot}/${g.totTot} 期</div></div>
+      <div class="prog"><div class="frac"><b>${g.shipTot}</b> / ${g.totTot} 期已出</div><div class="bar"><i style="width:${pct}%"></i></div><span class="remain-pill ${pillcls}">${pill}</span></div></article>`;};
+  const list=$("#list");const parts=[];
+  showIds.forEach(sid=>{const arr=byB[sid]||[];if(!arr.length)return;const sec=SECTS.find(s=>s.id===sid);
+    parts.push(`<div class="list-sec">${sec.label}<span class="cnt">${arr.length} 位</span></div>`);
+    parts.push(arr.map(cardHTML).join(""));});
+  if(!parts.length){list.innerHTML=`<div class="empty"><div class="big">${orders.length?"🔍":"📦"}</div><h2>${orders.length?"沒有符合的訂單":"還沒有任何訂單"}</h2><p>${orders.length?"換個篩選條件或搜尋看看。":"點右上角「＋ 新增訂單」，把客人下的定期方案登記進來。"}</p></div>`;return;}
+  list.innerHTML=parts.join("");
 }
 function renderWallet(){
   const totalCash=wallets.reduce((s,w)=>s+cashBal(w),0);
