@@ -55,7 +55,21 @@
   .btn:active{transform:translateY(1px)}
   .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{filter:brightness(1.05)}
   .btn-ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}.btn-ghost:hover{background:var(--surface-2)}
+  .btn-ship{background:var(--coffee);color:#fff}.btn-ship:hover{filter:brightness(1.08)}
   .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .ship-group{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px;background:var(--surface)}
+  .ship-name{display:flex;align-items:baseline;gap:9px;font-weight:800;font-size:15.5px;margin-bottom:6px}
+  .ship-name .meta{font-weight:600;font-size:12px;color:var(--ink-soft)}
+  .ship-row{border-top:1px dashed var(--line);padding:11px 0}
+  .ship-row:first-of-type{border-top:none}
+  .ship-row.done{opacity:.5}
+  .ship-row.over .sr-what{color:var(--overdue)}
+  .sr-what{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .sr-sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+  .sr-ship{font-size:12.5px;color:var(--ink-soft);margin-top:3px;word-break:break-all}
+  .sr-tag{font-weight:700}.sr-tag.due{color:var(--overdue)}.sr-tag.now{color:var(--accent-deep)}
+  .sr-act{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+  .sr-act .ship-track{flex:1;min-width:150px}
   .logout{background:none;border:none;color:var(--ink-faint);font-family:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline}
   .tabs{display:inline-flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:20px}
   .tabs button{border:none;background:none;font-family:inherit;font-size:14px;font-weight:700;color:var(--ink-soft);padding:8px 16px;border-radius:9px;cursor:pointer;transition:.12s}
@@ -259,6 +273,7 @@
   <header class="top">
     <div class="brand"><div><h1>芒果咖啡</h1><div class="sub">訂閱後台 · 定期方案 &amp; 儲值追蹤</div></div></div>
     <div class="hdr-actions" id="subsActions">
+      <button class="btn btn-ship" id="shipBtn">📦 出貨清單</button>
       <button class="btn btn-ghost" id="planBtn">⚙ 方案</button>
       <button class="btn btn-primary" id="addBtn">＋ 新增訂單</button>
     </div>
@@ -304,6 +319,13 @@
 <div class="overlay" id="detailOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="dTitle">
   <div class="modal-head"><div class="htxt"><h2 id="dTitle"></h2><div class="hsub" id="dSub"></div></div><button class="x" data-close aria-label="關閉">✕</button></div>
   <div class="modal-body" id="dBody"></div>
+  <div class="modal-foot"><button class="btn btn-ghost" data-close>關閉</button></div>
+</div></div>
+
+<!-- 本月出貨清單 -->
+<div class="overlay" id="shipOverlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+  <div class="modal-head"><div class="htxt"><h2 id="sTitle">📦 出貨清單</h2><div class="hsub" id="sSub"></div></div><button class="x" data-close aria-label="關閉">✕</button></div>
+  <div class="modal-body" id="sBody"></div>
   <div class="modal-foot"><button class="btn btn-ghost" data-close>關閉</button></div>
 </div></div>
 
@@ -581,6 +603,44 @@ function openCustomer(key){
   $("#dBody").innerHTML=html;
   $("#detailOverlay").hidden=false;
 }
+/* 本月出貨清單：把這個月（含逾期）所有還沒出貨的期數，一件一件列出來「要出什麼、寄去哪」 */
+function openShipList(){
+  const groups={},order=[];
+  orders.forEach(o=>{(o.periods||[]).forEach(p=>{
+    if(p.shipped||p.ym>nowYm)return;
+    const k=custKey(o);if(!groups[k]){groups[k]={key:k,units:[]};order.push(k);}
+    groups[k].units.push({o,p,overdue:p.ym<nowYm});});});
+  let overCnt=0,monthCnt=0;
+  order.forEach(k=>groups[k].units.forEach(u=>{u.overdue?overCnt++:monthCnt++;}));
+  const total=overCnt+monthCnt;
+  const gs=order.map(k=>groups[k]);
+  gs.forEach(g=>{g.hasOver=g.units.some(u=>u.overdue);g.minYm=g.units.reduce((a,u)=>u.p.ym<a?u.p.ym:a,g.units[0].p.ym);
+    g.units.sort((a,b)=>a.p.ym<b.p.ym?-1:a.p.ym>b.p.ym?1:0);});
+  gs.sort((a,b)=>(a.hasOver!==b.hasOver)?(a.hasOver?-1:1):(a.minYm<b.minYm?-1:a.minYm>b.minYm?1:a.key.localeCompare(b.key)));
+  $("#sSub").innerHTML=total?`${ymLabel(nowYm)}（含逾期）要出貨 <b>${total}</b> 件　${overCnt?`<span style="color:var(--overdue);font-weight:700">🔴 逾期 ${overCnt}</span> ・ `:""}🟡 本月 ${monthCnt}`:"";
+  if(!total){$("#sBody").innerHTML=`<div class="empty" style="padding:40px 10px"><div class="big">✅</div><h2>這個月沒有要出貨的了</h2><p>本月與逾期的訂閱都已標記出貨，辛苦了！</p></div>`;$("#shipOverlay").hidden=false;return;}
+  $("#sBody").innerHTML=gs.map(g=>{
+    const phone=(g.units.map(u=>u.o).find(o=>o.phone)||{}).phone||"";
+    return `<section class="ship-group">
+      <div class="ship-name"><span class="cust">${esc(g.key)}</span>${phone?`<span class="meta">${esc(phone)}</span>`:""}</div>
+      ${g.units.map(u=>{const o=u.o,p=u.p;const item=o.item&&ITEMS[o.item]?ITEMS[o.item]:null;
+        const what=item?`${item.name} ${item.packs*(o.qty||1)} 包`:`${esc(o.plan_name||o.plan_short||"方案")}${o.qty>1?` ×${o.qty} 組`:""}`;
+        return `<div class="ship-row ${u.overdue?"over":""}" data-soid="${o.id}" data-sp="${p.n}">
+          <div class="sr-what"><span class="badge ${o.badge_cls||"b-custom"}">${esc(o.plan_short||"方案")}</span> ${esc(what)}</div>
+          <div class="sr-sub">第 ${p.n} 期 · ${ymLabel(p.ym)}　${u.overdue?'<span class="sr-tag due">⚠ 逾期</span>':'<span class="sr-tag now">本月</span>'}</div>
+          <div class="sr-ship">🚚 ${DELIV[o.deliv]||"—"}${o.address?`：${esc(o.address)}`:""}</div>
+          <div class="sr-act"><button class="toggle ship-toggle" data-soid="${o.id}" data-sp="${p.n}">標記已出</button>
+            <input type="text" class="ptrack ship-track" data-soid="${o.id}" data-sp="${p.n}" placeholder="運單號碼 / 備註（客人看得到）" aria-label="運單號碼"></div>
+        </div>`;}).join("")}
+    </section>`;}).join("");
+  $("#shipOverlay").hidden=false;
+}
+function shipMark(oid,n,track){
+  const o=orders.find(x=>x.id===oid);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
+  p.shipped=true;p.shippedAt=today();if(track&&track.trim())p.tracking=track.trim();
+  persistPeriods(o);openShipList();renderSubs();
+  if(!$("#detailOverlay").hidden&&openCust)openCustomer(openCust);
+}
 async function persistPeriods(o){try{await sb.from("mango_orders").update({periods:o.periods}).eq("id",o.id);}catch(e){console.warn(e);}}
 async function togglePeriod(n){const o=orders.find(x=>x.id===openId);if(!o)return;const p=(o.periods||[]).find(x=>x.n===n);if(!p)return;
   p.shipped=!p.shipped;p.shippedAt=p.shipped?today():null;openCustomer(openCust);renderSubs();persistPeriods(o);}
@@ -772,6 +832,8 @@ function closeAll(){document.querySelectorAll(".overlay").forEach(o=>o.hidden=tr
 /* 事件 */
 document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.view)));
 $("#addBtn").addEventListener("click",openForm);
+$("#shipBtn").addEventListener("click",openShipList);
+$("#sBody").addEventListener("click",e=>{const t=e.target.closest(".ship-toggle");if(!t)return;const row=t.closest(".ship-row");const trk=row?row.querySelector(".ship-track"):null;shipMark(t.dataset.soid,Number(t.dataset.sp),trk?trk.value:"");});
 $("#planBtn").addEventListener("click",openPlanMgr);
 $("#addWalletBtn").addEventListener("click",openWalletForm);
 $("#list").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)openCustomer(c.dataset.cust);});
