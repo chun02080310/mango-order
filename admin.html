@@ -57,6 +57,10 @@
   .btn-ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}.btn-ghost:hover{background:var(--surface-2)}
   .btn-ship{background:var(--coffee);color:#fff}.btn-ship:hover{filter:brightness(1.08)}
   .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .backup-banner{display:flex;align-items:center;gap:10px;background:var(--overdue-bg);border:1px solid var(--overdue);border-radius:12px;padding:10px 12px;margin-bottom:14px}
+  .backup-banner .bb-txt{flex:1;font-size:13.5px;font-weight:700;color:var(--overdue);line-height:1.4}
+  .backup-banner .bb-x{background:none;border:none;color:var(--overdue);font-size:15px;cursor:pointer;padding:4px;opacity:.7}
+  .backup-banner .bb-x:hover{opacity:1}
   .ship-group{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px;background:var(--surface)}
   .ship-name{display:flex;align-items:baseline;gap:9px;font-weight:800;font-size:15.5px;margin-bottom:6px}
   .ship-name .meta{font-weight:600;font-size:12px;color:var(--ink-soft)}
@@ -281,11 +285,19 @@
       <button class="btn btn-primary" id="addWalletBtn">＋ 新增儲值客戶</button>
     </div>
     <button class="btn btn-ghost" id="linkBtn" title="客人查詢連結">🔗 客人連結</button>
-    <button class="btn btn-ghost" id="backupBtn" title="匯出備份">⤓ 備份</button>
+    <button class="btn btn-ghost" id="backupBtn" title="存一份備份到這台裝置">⤓ 備份存檔</button>
+    <button class="btn btn-ghost" id="restoreBtn" title="用備份檔把資料還原回來">↺ 還原</button>
+    <input type="file" id="restoreFile" accept=".json,application/json" hidden>
     <button class="btn btn-ghost" id="resetReqBtn" title="密碼重設申請">🔔 密碼申請</button>
     <button class="btn btn-ghost" id="teamBtn" title="團隊">👥 團隊</button>
     <button class="logout" id="logoutBtn" title="登出">登出</button>
   </header>
+
+  <div class="backup-banner" id="backupBanner" hidden>
+    <span class="bb-txt" id="bbTxt"></span>
+    <button class="btn btn-primary" id="bbBackupBtn" style="padding:7px 14px;font-size:13px">⤓ 現在備份</button>
+    <button class="bb-x" id="bbDismiss" aria-label="先不用">✕</button>
+  </div>
 
   <div class="tabs" role="tablist">
     <button data-view="subs" aria-pressed="true">📦 訂閱追蹤</button>
@@ -502,6 +514,7 @@ async function loadAll(){
     render();
     if(openCust){if(orders.some(o=>custKey(o)===openCust))openCustomer(openCust);else{$("#detailOverlay").hidden=true;openCust=null;}}
     if(openW&&wallets.find(w=>w.id===openW))openWallet(openW);
+    autoSafeguard();
   }catch(e){console.error(e);}
 }
 
@@ -898,8 +911,52 @@ function exportBackup(){
   const url=URL.createObjectURL(blob);const a=document.createElement("a");
   a.href=url;a.download="芒果訂閱備份_"+today()+".json";document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1500);
+  try{localStorage.setItem("mango_last_backup",new Date().toISOString());}catch(e){}
+  $("#backupBanner").hidden=true;
 }
 $("#backupBtn").addEventListener("click",exportBackup);
+$("#bbBackupBtn").addEventListener("click",exportBackup);
+$("#bbDismiss").addEventListener("click",()=>{$("#backupBanner").hidden=true;try{localStorage.setItem("mango_backup_snooze",today());}catch(e){}});
+
+/* 還原：用備份檔把資料補回來（只會補回／更新，不會刪掉現在已有的） */
+$("#restoreBtn").addEventListener("click",()=>$("#restoreFile").click());
+$("#restoreFile").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(f)restoreBackup(f);e.target.value="";});
+function restoreBackup(file){
+  const r=new FileReader();
+  r.onload=async()=>{
+    let data;try{data=JSON.parse(r.result);}catch(_){alert("這個檔案看起來不是備份檔，打不開。請選「芒果訂閱備份_日期.json」這種檔案。");return;}
+    const O=Array.isArray(data.orders)?data.orders.filter(x=>x&&x.id):[];
+    const W=Array.isArray(data.wallets)?data.wallets.filter(x=>x&&x.id):[];
+    if(!O.length&&!W.length){alert("這個備份檔裡沒有可還原的資料。");return;}
+    const when=data.exported_at?new Date(data.exported_at).toLocaleString("zh-TW"):"（未知時間）";
+    if(!confirm(`要用這份備份還原嗎？\n\n備份時間：${when}\n訂閱訂單：${O.length} 筆\n儲值客戶：${W.length} 位\n\n系統會把備份裡的資料「補回來／更新」，不會刪掉你現在已經有的資料。確定還原？`))return;
+    const btn=$("#restoreBtn");const old=btn.textContent;btn.disabled=true;btn.textContent="還原中…";
+    try{
+      if(O.length)await sb.from("mango_orders").upsert(O,{onConflict:"id"});
+      if(W.length)await sb.from("mango_wallets").upsert(W,{onConflict:"id"});
+      if(data.plans&&typeof data.plans==="object"){const P=Object.keys(data.plans).map(id=>{const p=data.plans[id];return{id,name:p.name,short:p.short,total:p.total,cadence:p.cadence,need_item:p.needItem,descr:p.descr||""};});if(P.length)await sb.from("mango_plans").upsert(P,{onConflict:"id"});}
+      await loadAll();
+      alert(`還原完成 ✓\n已補回 ${O.length} 筆訂閱、${W.length} 位儲值客戶。`);
+    }catch(ex){console.error(ex);alert("還原時出了點問題，資料沒有被更動。請再試一次，或把備份檔傳給我檢查。");}
+    btn.disabled=false;btn.textContent=old;
+  };
+  r.readAsText(file);
+}
+
+/* 自動保障：每次開啟都在這台裝置留一份快照，並在太久沒備份時提醒 */
+function autoSafeguard(){
+  try{localStorage.setItem("mango_auto_snapshot",JSON.stringify({at:new Date().toISOString(),orders,wallets,plans:customPlans}));}catch(e){}
+  try{
+    const last=localStorage.getItem("mango_last_backup");
+    const snooze=localStorage.getItem("mango_backup_snooze");
+    const days=last?Math.floor((Date.now()-new Date(last).getTime())/86400000):null;
+    let show=false,msg="";
+    if(days===null){show=true;msg="⚠️ 還沒存過備份。這裡有金額資料，建議現在先存一份到手機，萬一出狀況才能還原。";}
+    else if(days>=7){show=true;msg=`⚠️ 已經 ${days} 天沒備份了。資料涉及金額，建議現在再存一份。`;}
+    if(show&&snooze===today())show=false; // 今天已按「先不用」就不再煩
+    $("#bbTxt").textContent=msg;$("#backupBanner").hidden=!show;
+  }catch(e){}
+}
 
 /* ===== 登入 ===== */
 function hideAll(){["boot","app","authOverlay","noAccessOverlay","recoverOverlay"].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=true;});}
