@@ -50,6 +50,7 @@
   .brand .sub{font-size:12.5px;color:var(--ink-soft);letter-spacing:.02em;margin-top:2px}
   .hdr-actions{display:flex;gap:10px;align-items:center}
   .hdr-actions[hidden]{display:none}
+  .hdr-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .btn{border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;border-radius:10px;
     padding:10px 16px;display:inline-flex;align-items:center;gap:7px;transition:transform .08s,filter .15s}
   .btn:active{transform:translateY(1px)}
@@ -234,7 +235,9 @@
   .auth-msg{font-size:13px;margin-top:12px;font-weight:600}.auth-msg.ok{color:var(--good)}.auth-msg.err{color:var(--overdue)}
   .boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:14px;z-index:120;background:var(--paper)}
   .boot[hidden]{display:none}
-  @media(max-width:560px){.card{grid-template-columns:1fr}.prog,.bal-col{align-items:flex-start;text-align:left}.bar{max-width:none;width:100%}.row2{grid-template-columns:1fr}.detail-hero .num{font-size:32px}header.top .btn{flex:1;justify-content:center}}
+  @media(max-width:560px){.card{grid-template-columns:1fr}.prog,.bal-col{align-items:flex-start;text-align:left}.bar{max-width:none;width:100%}.row2{grid-template-columns:1fr}.detail-hero .num{font-size:32px}.hdr-actions{width:100%;gap:8px}.hdr-actions .btn{flex:1;justify-content:center;padding:11px 6px;white-space:nowrap}
+    .hdr-tools{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.hdr-tools .btn{justify-content:center;padding:9px 4px;font-size:13px;white-space:nowrap;gap:5px}
+    .hdr-tools .logout{justify-self:center;padding:9px 4px}}
 </style>
 </head>
 <body>
@@ -292,6 +295,7 @@
     <div class="hdr-actions" id="walletActions" hidden>
       <button class="btn btn-primary" id="addWalletBtn">＋ 新增儲值客戶</button>
     </div>
+    <div class="hdr-tools">
     <button class="btn btn-ghost" id="linkBtn" title="客人查詢連結">🔗 客人連結</button>
     <button class="btn btn-ghost" id="backupBtn" title="存一份備份到這台裝置">⤓ 備份存檔</button>
     <button class="btn btn-ghost" id="restoreBtn" title="用備份檔把資料還原回來">↺ 還原</button>
@@ -299,6 +303,7 @@
     <button class="btn btn-ghost" id="resetReqBtn" title="密碼重設申請">🔔 密碼申請</button>
     <button class="btn btn-ghost" id="teamBtn" title="團隊">👥 團隊</button>
     <button class="logout" id="logoutBtn" title="登出">登出</button>
+    </div>
   </header>
 
   <div class="backup-banner" id="backupBanner" hidden>
