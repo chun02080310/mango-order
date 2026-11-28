@@ -96,6 +96,14 @@
   .list{display:flex;flex-direction:column;gap:11px}
   .list-sec{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:var(--ink-soft);letter-spacing:.02em;padding:14px 4px 6px}
   .list-sec:first-child{padding-top:2px}
+  .group-by{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13px;color:var(--ink-soft);font-weight:700}
+  .group-by .seg2{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+  .group-by .seg2 button{border:0;background:transparent;color:var(--ink-soft);padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .group-by .seg2 button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .group-by .seg2 button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  .list-sec.plan-sec{flex-wrap:wrap;font-size:14px;color:var(--ink);padding-top:18px}
+  .list-sec .sub{flex-basis:100%;padding-left:2px;font-weight:600;color:var(--ink-soft);font-size:12px}
+  .list-sec .sub b{color:var(--accent-deep)}
   .list-sec .cnt{font-weight:700;color:var(--ink-faint);font-size:12px}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow);cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;transition:border-color .12s,transform .08s}
   .card:hover{border-color:var(--accent)}.card:active{transform:translateY(1px)}
@@ -306,6 +314,8 @@
 
   <div id="subsView">
     <section class="tiles" id="tiles"></section>
+    <div class="group-by">排列方式
+      <span class="seg2" role="group" aria-label="清單排列方式"><button type="button" data-gb="urgency" aria-pressed="true">依急迫度</button><button type="button" data-gb="plan" aria-pressed="false">依方案</button></span></div>
     <div class="filters">
       <button class="chip" data-f="all" aria-pressed="true">全部</button>
       <button class="chip" data-f="active" aria-pressed="false">進行中</button>
@@ -495,6 +505,7 @@ let view="subs";
 let orders=[],customPlans={},wallets=[];
 let filter="all",query="",wQuery="",openId=null,openW=null,openCust=null,txKind="cash",editingTxIdx=null,profileType="wallet",resets=[];
 const custKey=o=>(((o&&o.customer)||"")+"").trim();
+let groupBy="urgency";try{if(localStorage.getItem("mango_group_by")==="plan")groupBy="plan";}catch(e){}
 let form={plan:null,item:null},planCad="monthly",editingPlanId=null;
 
 function allPlans(){return {...BUILTIN,...customPlans};}
@@ -535,22 +546,20 @@ function renderSubs(){
     <div class="tile hot"><div class="k">🔔 本月（含逾期）待出貨</div><div class="v">${dueMonth}<small> 期</small></div></div>
     <div class="tile"><div class="k">🕗 尚未出貨總期數</div><div class="v">${remainTotal}<small> 期</small></div></div>
     <div class="tile"><div class="k">✅ 已完成訂單</div><div class="v">${doneCnt}<small> 筆</small></div></div>`;
-  // 依「客人姓名」分組：同一個名字只出現一張卡
-  const gmap={},groups=[];
-  orders.forEach(o=>{const k=custKey(o);if(!gmap[k]){gmap[k]={key:k,list:[]};groups.push(gmap[k]);}gmap[k].list.push(o);});
-  // 算每位客人的狀態桶（逾期/本月/進行中/已完成）＋排序用的最近待出貨月份
-  groups.forEach(g=>{let remTot=0,shipTot=0,totTot=0,hasOver=false,hasMonth=false,nextYm="9999-99";
-    g.list.forEach(o=>{const s=stats(o);remTot+=s.remain;shipTot+=s.shipped;totTot+=s.total;
-      (o.periods||[]).forEach(p=>{if(!p.shipped){if(p.ym<nowYm)hasOver=true;else if(p.ym===nowYm)hasMonth=true;if(p.ym<nextYm)nextYm=p.ym;}});});
-    g.remTot=remTot;g.shipTot=shipTot;g.totTot=totTot;g.nextYm=nextYm;
-    g.phone=(g.list.find(o=>o.phone)||{}).phone||"";
-    g.bucket=hasOver?"overdue":hasMonth?"month":(remTot>0?"active":"done");});
-  let gs=groups.slice();
-  if(query)gs=gs.filter(g=>g.key.toLowerCase().includes(query));
+  // 依「客人姓名」分組：同一個名字只出現一張卡（傳入的訂單清單可以是全部，或只有某個方案的）
+  const groupByCust=list=>{const gmap={},groups=[];
+    list.forEach(o=>{const k=custKey(o);if(!gmap[k]){gmap[k]={key:k,list:[]};groups.push(gmap[k]);}gmap[k].list.push(o);});
+    // 算每位客人的狀態桶（逾期/本月/進行中/已完成）＋排序用的最近待出貨月份
+    groups.forEach(g=>{let remTot=0,shipTot=0,totTot=0,hasOver=false,hasMonth=false,nextYm="9999-99";
+      g.list.forEach(o=>{const s=stats(o);remTot+=s.remain;shipTot+=s.shipped;totTot+=s.total;
+        (o.periods||[]).forEach(p=>{if(!p.shipped){if(p.ym<nowYm)hasOver=true;else if(p.ym===nowYm)hasMonth=true;if(p.ym<nextYm)nextYm=p.ym;}});});
+      g.remTot=remTot;g.shipTot=shipTot;g.totTot=totTot;g.nextYm=nextYm;
+      g.phone=(g.list.find(o=>o.phone)||{}).phone||"";
+      g.bucket=hasOver?"overdue":hasMonth?"month":(remTot>0?"active":"done");});
+    return query?groups.filter(g=>g.key.toLowerCase().includes(query)):groups;};
   const SECTS=[{id:"overdue",label:"🔴 逾期待出貨"},{id:"month",label:"🟡 本月待出貨"},{id:"active",label:"🟢 進行中"},{id:"done",label:"✅ 已完成"}];
   const showIds=filter==="active"?["overdue","month","active"]:filter==="thismonth"?["overdue","month"]:filter==="done"?["done"]:["overdue","month","active","done"];
-  const byB={};gs.forEach(g=>{(byB[g.bucket]=byB[g.bucket]||[]).push(g);});
-  Object.values(byB).forEach(arr=>arr.sort((a,b)=>a.nextYm<b.nextYm?-1:a.nextYm>b.nextYm?1:a.key.localeCompare(b.key)));
+  const byNext=(a,b)=>a.nextYm<b.nextYm?-1:a.nextYm>b.nextYm?1:a.key.localeCompare(b.key);
   const cardHTML=g=>{const pct=g.totTot?Math.round(g.shipTot/g.totTot*100):0;
     let pill,pillcls;if(g.remTot===0){pill="已全部出貨";pillcls="done";}else if(g.bucket==="overdue"){pill="逾期！剩 "+g.remTot+" 期";pillcls="due";}else{pill="尚未出貨 "+g.remTot+" 期";pillcls="go";}
     const dueNow=g.bucket==="overdue"||g.bucket==="month";
@@ -561,9 +570,35 @@ function renderSubs(){
         <div class="meta">${g.phone?esc(g.phone)+"<span class='dot'>·</span>":""}已出 ${g.shipTot}/${g.totTot} 期</div></div>
       <div class="prog"><div class="frac"><b>${g.shipTot}</b> / ${g.totTot} 期已出</div><div class="bar"><i style="width:${pct}%"></i></div><span class="remain-pill ${pillcls}">${pill}</span></div></article>`;};
   const list=$("#list");const parts=[];
-  showIds.forEach(sid=>{const arr=byB[sid]||[];if(!arr.length)return;const sec=SECTS.find(s=>s.id===sid);
-    parts.push(`<div class="list-sec">${sec.label}<span class="cnt">${arr.length} 位</span></div>`);
-    parts.push(arr.map(cardHTML).join(""));});
+  if(groupBy==="plan"){
+    // 依方案分組：一個方案一段；同一位客人訂了兩種方案，會在兩段各出現一次（只算該方案的訂單）
+    const pmap={},plist=[];const BUILT_ORDER=Object.keys(BUILTIN);
+    orders.forEach(o=>{const pid=o.plan||("_"+(o.plan_name||o.plan_short||"其他"));
+      if(!pmap[pid]){const d=getDef(o.plan);pmap[pid]={pid,name:(d&&d.name)||o.plan_name||o.plan_short||"其他方案",short:(d&&d.short)||o.plan_short||"",cls:(d&&d.cls)||o.badge_cls||"b-custom",list:[]};plist.push(pmap[pid]);}
+      pmap[pid].list.push(o);});
+    const rank=pg=>{const i=BUILT_ORDER.indexOf(pg.pid);return i<0?99:i;};
+    plist.sort((a,b)=>rank(a)-rank(b)||a.name.localeCompare(b.name));
+    const BR={overdue:0,month:1,active:2,done:3};
+    plist.forEach(pg=>{
+      const gs=groupByCust(pg.list).filter(g=>showIds.includes(g.bucket));
+      if(!gs.length)return;
+      gs.sort((a,b)=>BR[a.bucket]-BR[b.bucket]||byNext(a,b));
+      // 這個方案本月（含逾期）要出幾份、品項各幾份
+      let dueN=0,overN=0;const itemCnt={};
+      pg.list.forEach(o=>{if(query&&!custKey(o).toLowerCase().includes(query))return;
+        (o.periods||[]).forEach(p=>{if(!p.shipped&&p.ym<=nowYm){const q=o.qty||1;dueN+=q;if(p.ym<nowYm)overN+=q;if(o.item&&ITEMS[o.item])itemCnt[o.item]=(itemCnt[o.item]||0)+q;}});});
+      const itemTxt=Object.keys(itemCnt).length?"（"+Object.keys(itemCnt).map(k=>ITEMS[k].name+" "+itemCnt[k]).join("、")+"）":"";
+      const sub=dueN?`本月要出 <b>${dueN} 份</b>${itemTxt}${overN?`・其中逾期 <b>${overN}</b>`:""}`:"本月沒有要出的";
+      parts.push(`<div class="list-sec plan-sec"><span class="badge ${pg.cls}">${esc(pg.short||pg.name)}</span>${esc(pg.name)}<span class="cnt">${gs.length} 位</span><span class="sub">${sub}</span></div>`);
+      parts.push(gs.map(cardHTML).join(""));});
+  }else{
+    const gs=groupByCust(orders);
+    const byB={};gs.forEach(g=>{(byB[g.bucket]=byB[g.bucket]||[]).push(g);});
+    Object.values(byB).forEach(arr=>arr.sort(byNext));
+    showIds.forEach(sid=>{const arr=byB[sid]||[];if(!arr.length)return;const sec=SECTS.find(s=>s.id===sid);
+      parts.push(`<div class="list-sec">${sec.label}<span class="cnt">${arr.length} 位</span></div>`);
+      parts.push(arr.map(cardHTML).join(""));});
+  }
   if(!parts.length){list.innerHTML=`<div class="empty"><div class="big">${orders.length?"🔍":"📦"}</div><h2>${orders.length?"沒有符合的訂單":"還沒有任何訂單"}</h2><p>${orders.length?"換個篩選條件或搜尋看看。":"點右上角「＋ 新增訂單」，把客人下的定期方案登記進來。"}</p></div>`;return;}
   list.innerHTML=parts.join("");
 }
@@ -883,6 +918,7 @@ document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",
 document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target!==o)return;if(o.id==="planOverlay")closePlanMgr();else if(o.id==="photoView")o.hidden=true;else closeAll();}));
 document.getElementById("photoViewImg").addEventListener("click",()=>{$("#photoView").hidden=true;});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("#photoView").hidden){$("#photoView").hidden=true;return;}if(!$("#planOverlay").hidden)closePlanMgr();else closeAll();});
+document.querySelectorAll("#subsView [data-gb]").forEach(b=>{b.setAttribute("aria-pressed",String(b.dataset.gb===groupBy));b.addEventListener("click",()=>{groupBy=b.dataset.gb;try{localStorage.setItem("mango_group_by",groupBy);}catch(e){}document.querySelectorAll("#subsView [data-gb]").forEach(c=>c.setAttribute("aria-pressed",String(c===b)));renderSubs();});});
 document.querySelectorAll("#subsView .chip").forEach(ch=>ch.addEventListener("click",()=>{filter=ch.dataset.f;document.querySelectorAll("#subsView .chip").forEach(c=>c.setAttribute("aria-pressed",String(c===ch)));renderSubs();}));
 $("#search").addEventListener("input",e=>{query=e.target.value.trim().toLowerCase();renderSubs();});
 $("#wSearch").addEventListener("input",e=>{wQuery=e.target.value.trim().toLowerCase();renderWallet();});
